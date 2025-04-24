@@ -7,6 +7,13 @@
 #define PUL_PIN_3 30   
 #define DIR_PIN_3 32
 
+// #define PUL_PIN_1 265   // Chân xung
+// #define DIR_PIN_1 345   // Chân hướng quay
+// #define PUL_PIN_2 24
+// #define DIR_PIN_2 33
+// #define PUL_PIN_3 268   
+// #define DIR_PIN_3 349
+
 //Khai báo chân đọc encoder
 #define pinA_1 2
 #define pinB_1 3
@@ -443,7 +450,7 @@ void SetHome()
   Serial.print("Limit 3: "); Serial.println(digitalRead(limit_3));
   while (!xHomed || !yHomed || !zHomed)
   {
-
+    // Set home cho motor 1
     if (!xHomed)
     {
       if (digitalRead(limit_1) == LOW)
@@ -462,7 +469,7 @@ void SetHome()
         delayMicroseconds(80);
       }
     }
-
+    // Set home cho motor 2
     if (!yHomed)
     {
       if (digitalRead(limit_2) == LOW)
@@ -481,7 +488,7 @@ void SetHome()
         delayMicroseconds(80);
       }
     }
-
+    // Set home cho motor 3
     if (!zHomed)
     {
       if (digitalRead(limit_3) == LOW)
@@ -505,13 +512,15 @@ void SetHome()
 }
 void SetPosition_1()
 {
+  detachInterrupt(digitalPinToInterrupt(pinA_1)); 
+  detachInterrupt(digitalPinToInterrupt(pinB_1));
   deg1 = 0.0;
   deg1_old = 0.0;
   degree1 = 0.0;
-  detachInterrupt(digitalPinToInterrupt(pinA_1)); 
-  detachInterrupt(digitalPinToInterrupt(pinB_1));
+  
   encoderPosition_1 = 0;
   nPulse_1 = 0; 
+  delayMicroseconds(50);
   attachInterrupt(digitalPinToInterrupt(pinA_1), handleA_1, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pinB_1), handleB_1, CHANGE);
 }
