@@ -62,10 +62,12 @@ int motorRunning_1;
 int motorRunning_2;
 int motorRunning_3;
 
-unsigned long startTime = 0;
-unsigned long endTime = 0;
+unsigned long startTime_1,startTime_2,startTime_3;
+unsigned long endTime_1,endTime_2,endTime_3;
 
 unsigned long lastPrintTime = 0;
+
+bool ENA_Encoder = false;
 
 void setup() 
 {
@@ -111,9 +113,9 @@ void loop()
   //     {delay(10);}
   //   }
   // }
-  if (Serial.available()) 
+  while (Serial.available()) 
   {
-    String input = Serial.readStringUntil('\n');
+    String input = Serial.readStringUntil('\r');
     input.trim();
     // delayMicroseconds(1);
     Serial.println("Received: " + input); 
@@ -129,50 +131,48 @@ void loop()
     }
     // else
     // {
-      for (int x = 0; x < input.length(); x++) 
+    for (int x = 0; x < input.length(); x++) 
+    {
+      if ((input[x] == '-') || (input[x] == '.')) 
       {
-        if ((input[x] == '-') || (input[x] == '.')) 
-        {
-          inString += (char)input[x];
-        }
-        if (isDigit(input[x])) 
-        {
-          inString += (char)input[x];
-        }
-      
-        if (input[x] == 'A') 
-        {
-          // delay(200);
-          deg1 = inString.toFloat();
-          Degree_1(deg1, deg1_old);
-          
-          deg1_old = deg1;
-          inString = " ";
-        } 
-        
-        else if (input[x] == 'B') 
-        {
-          deg2 = inString.toFloat();
-          // delay(500);
-          Degree_2(deg2, deg2_old);
-          
-          deg2_old = deg2;
-          inString = " ";
-          // delay(500);
-        }
-
-        else if (input[x] == 'C') 
-        {
-          // delay(500); 
-          deg3 = inString.toFloat();
-          inString = " ";
-          Degree_3(deg3, deg3_old);
-          
-          deg3_old = deg3;
-          // delay(500);
-        }
-
+        inString += (char)input[x];
       }
+      if (isDigit(input[x])) 
+      {
+        inString += (char)input[x];
+      }
+    
+      if (input[x] == 'A') 
+      {
+        // delay(200);
+        deg1 = inString.toFloat();
+        Degree_1(deg1, deg1_old);
+        
+        deg1_old = deg1;
+        inString = " ";
+      } 
+        
+      else if (input[x] == 'B') 
+      {
+        deg2 = inString.toFloat();
+        // delay(500);
+        Degree_2(deg2, deg2_old);
+        
+        deg2_old = deg2;
+        inString = " ";
+        // delay(500);
+      }
+      else if (input[x] == 'C') 
+      {
+        // delay(500); 
+        deg3 = inString.toFloat();
+        inString = " ";
+        Degree_3(deg3, deg3_old);
+        
+        deg3_old = deg3;
+        // delay(500);
+      }
+    }
     // }
   }
   float theta1 = deg1;
@@ -182,16 +182,18 @@ void loop()
   RunMotor_2();
   RunMotor_3();
 
-  if (millis() - lastPrintTime >= 2000) 
-  { 
-      Serial.print("Encoder 1: "); Serial.print(encoderPosition_1);  Serial.print("  ");
-      Serial.print("Encoder 2: "); Serial.print(encoderPosition_2);  Serial.print("  ");
-      Serial.print("Encoder 3: "); Serial.println(encoderPosition_3);  
+  // if(ENA_Encoder)
+  // {
+    if (millis() - lastPrintTime >= 2000) 
+    { 
+        Serial.print("Encoder 1: "); Serial.print(encoderPosition_1);  Serial.print("  ");
+        Serial.print("Encoder 2: "); Serial.print(encoderPosition_2);  Serial.print("  ");
+        Serial.print("Encoder 3: "); Serial.println(encoderPosition_3);  
 
-      lastPrintTime = millis();
-  }
-  // Serial.println(encoderPosition_1);
-  // delay(2000); 
+        lastPrintTime = millis();
+    }
+  // }
+  
   float Px, Py, Pz;
 
   bool success = ForwardKinematicUpdate(theta1, theta2, theta3, Px, Py, Pz);
@@ -225,10 +227,10 @@ void Degree_1(float deg, float deg_old)
     degree1 = abs(deg - deg_old);
     Serial.println("thuan"); 
   }
-  nPulse_1 = degree1 * 10000 ;
+  nPulse_1 = degree1 * 8 * 10000 / 360;
   motorRunning_1 = true;
 
-  startTime = millis();
+  startTime_1 = millis();
 }
 
 void Degree_2(float deg, float deg_old) 
@@ -245,10 +247,10 @@ void Degree_2(float deg, float deg_old)
     degree2 = abs(deg - deg_old);
     Serial.println("thuan"); 
   }
-  // nPulse_2 = degree2 * 8 * 10000 / 360;
-  nPulse_2 = degree2 * 10000;
+  nPulse_2 = degree2 * 8 * 10000 / 360;
+  // nPulse_2 = degree2 * 10000;
   motorRunning_2 = true;
-  startTime = millis();
+  startTime_2 = millis();
 }
 
 void Degree_3(float deg, float deg_old) 
@@ -265,9 +267,10 @@ void Degree_3(float deg, float deg_old)
     degree3 = abs(deg - deg_old);
     Serial.println("thuan"); 
   }
-  // nPulse_3 = degree3 * 8 * 10000 / 360;
-  nPulse_3 = degree3 * 10000;
+  nPulse_3 = degree3 * 8 * 10000 / 360;
+  // nPulse_3 = degree3 * 10000;
   motorRunning_3 = true;
+  startTime_3 = millis();
 }
 
 ///////////////////////////////////////////RUN MOTOR//////////////////////////////////////////////
@@ -277,7 +280,7 @@ void RunMotor_1()
   if (motorRunning_1 && nPulse_1 > 0) 
   {
     unsigned long now = micros();
-    if (now - lastPulseTime_1 >= 1) 
+    if (now - lastPulseTime_1 >= 150) 
     { // mỗi 60us (30us high + 30us low)
       digitalWrite(PUL_PIN_1, !digitalRead(PUL_PIN_1)); // Toggle xung
       lastPulseTime_1 = now;
@@ -300,7 +303,7 @@ void RunMotor_2()
   if (motorRunning_2 && nPulse_2 > 0) 
   {
     unsigned long now = micros();
-    if (now - lastPulseTime_2 >= 10) 
+    if (now - lastPulseTime_2 >= 150) 
     { // mỗi 60us (30us high + 30us low)
       digitalWrite(PUL_PIN_2, !digitalRead(PUL_PIN_2)); // Toggle xung
       lastPulseTime_2 = now;
@@ -323,7 +326,7 @@ void RunMotor_3()
   if (motorRunning_3 && nPulse_3 > 0) 
   {
     unsigned long now = micros();
-    if (now - lastPulseTime_3 >= 50) 
+    if (now - lastPulseTime_3 >= 150) 
     { // mỗi 60us (30us high + 30us low)
       digitalWrite(PUL_PIN_3, !digitalRead(PUL_PIN_3)); // Toggle xung
       lastPulseTime_3 = now;
@@ -344,8 +347,8 @@ void StopMotor_1()
 {
   motorRunning_1 = false;
   digitalWrite(PUL_PIN_1, LOW);
-  endTime = millis(); // Ghi lại thời gian kết thúc
-  unsigned long runDuration = endTime - startTime;
+  endTime_1 = millis(); // Ghi lại thời gian kết thúc
+  unsigned long runDuration = endTime_1 - startTime_1;
   Serial.print("Run time 1: ");
   Serial.print(runDuration);
   Serial.println(" ms");
@@ -354,8 +357,8 @@ void StopMotor_2()
 {
   motorRunning_2 = false;
   digitalWrite(PUL_PIN_2, LOW);
-  endTime = millis(); // Ghi lại thời gian kết thúc
-  unsigned long runDuration = endTime - startTime;
+  endTime_2 = millis(); // Ghi lại thời gian kết thúc
+  unsigned long runDuration = endTime_2 - startTime_2;
   Serial.print("Run time 2: ");
   Serial.print(runDuration);
   Serial.println(" ms");
@@ -364,8 +367,8 @@ void StopMotor_3()
 {
   motorRunning_3 = false;
   digitalWrite(PUL_PIN_3, LOW);
-  endTime = millis(); // Ghi lại thời gian kết thúc
-  unsigned long runDuration = endTime - startTime;
+  endTime_3 = millis(); // Ghi lại thời gian kết thúc
+  unsigned long runDuration = endTime_3 - startTime_3;
   Serial.print("Run time 3: ");
   Serial.print(runDuration);
   Serial.println(" ms");
@@ -383,68 +386,7 @@ void SetHome()
   bool xHomed = false; // Cờ để kiểm tra trục X đã về gốc
   bool yHomed = false; // Cờ để kiểm tra trục Y đã về gốc
   bool zHomed = false; // Cờ để kiểm tra trục Z đã về gốc
-  // while (!xHomed || !yHomed || !zHomed)
-  // while (!xHomed || !yHomed || !zHomed)
-  // {
-  //   // Set home cho motor 1
-  //   if (!xHomed)
-  //   {
-  //     if (digitalRead(limit_1) == HIGH)
-  //     {
-  //       digitalWrite(PUL_PIN_1,HIGH);
-  //       delayMicroseconds(80);
-  //       digitalWrite(PUL_PIN_1,LOW);
-  //       delayMicroseconds(80);
-  //     }
-  //     else
-  //     {
-  //       StopMotor_1();
-  //       delay(50);
-  //       SetPosition_1();
-  //       xHomed = true;
-  //     }
-  //   }
-  //   // Set home cho motor 2
-  //   if (!yHomed)
-  //   {
-  //     if (digitalRead(limit_2) == HIGH)
-  //     {
-  //       digitalWrite(PUL_PIN_2,HIGH);
-  //       delayMicroseconds(80);
-  //       digitalWrite(PUL_PIN_2,LOW);
-  //       delayMicroseconds(80);
-  //     }
-  //     else
-  //     {
-  //       StopMotor_2();
-  //       delay(50);
-  //       SetPosition_2();
-  //       Serial.print("Encoder sau reset: ");
-  //       Serial.println(encoderPosition_2);
-  //       yHomed = true;
-  //     }
-  //   }
-  //   // Set home cho motor 3
-  //   if (!zHomed)
-  //   {
-  //     if (digitalRead(limit_3) == HIGH)
-  //     {
-  //       digitalWrite(PUL_PIN_3,HIGH);
-  //       delayMicroseconds(80);
-  //       digitalWrite(PUL_PIN_3,LOW);
-  //       delayMicroseconds(80);
-  //     }
-  //     else
-  //     {
-  //       StopMotor_3();
-  //       delay(50);
-  //       SetPosition_3();
-  //       Serial.print("Encoder sau reset: ");
-  //       Serial.println(encoderPosition_3);
-  //       zHomed = true;
-  //     }
-  //   }
-  // }
+
   Serial.print("Limit 1: "); Serial.println(digitalRead(limit_1));
   Serial.print("Limit 2: "); Serial.println(digitalRead(limit_2));
   Serial.print("Limit 3: "); Serial.println(digitalRead(limit_3));
@@ -509,6 +451,7 @@ void SetHome()
     }
   }
   Serial.println("Da thoat khoi SetHome.");
+  ENA_Encoder = true;
 }
 void SetPosition_1()
 {
@@ -555,6 +498,7 @@ void SetPosition_3()
 
 ///////////////////////////////////////////RECEIVE ENCODER VALUE/////////////////////////////////////
 // Hàm đếm xung encoder khi có sự thay đổi trạng thái
+// TTL: Transistor-Transistor Logic,  hoạt động trong khoảng 0-5V
 void handleA_1() {
   if (READ_A_1) {
     if (READ_B_1) encoderPosition_1--;
