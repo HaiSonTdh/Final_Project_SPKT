@@ -67,8 +67,6 @@ unsigned long endTime_1,endTime_2,endTime_3;
 
 unsigned long lastPrintTime = 0;
 
-bool ENA_Encoder = false;
-
 void setup() 
 {
   pinMode(PUL_PIN_1, OUTPUT);
@@ -113,9 +111,10 @@ void loop()
   //     {delay(10);}
   //   }
   // }
-  while (Serial.available()) 
+  // while (Serial.available()) 
+  if (Serial.available()) 
   {
-    String input = Serial.readStringUntil('\r');
+    String input = Serial.readStringUntil('\n');
     input.trim();
     // delayMicroseconds(1);
     Serial.println("Received: " + input); 
@@ -182,17 +181,13 @@ void loop()
   RunMotor_2();
   RunMotor_3();
 
-  // if(ENA_Encoder)
-  // {
-    if (millis() - lastPrintTime >= 2000) 
-    { 
-        Serial.print("Encoder 1: "); Serial.print(encoderPosition_1);  Serial.print("  ");
-        Serial.print("Encoder 2: "); Serial.print(encoderPosition_2);  Serial.print("  ");
-        Serial.print("Encoder 3: "); Serial.println(encoderPosition_3);  
-
-        lastPrintTime = millis();
-    }
-  // }
+  if (millis() - lastPrintTime >= 2000) 
+  { 
+      Serial.print("Encoder 1: "); Serial.print(encoderPosition_1);  Serial.print("  ");
+      Serial.print("Encoder 2: "); Serial.print(encoderPosition_2);  Serial.print("  ");
+      Serial.print("Encoder 3: "); Serial.println(encoderPosition_3);  
+      lastPrintTime = millis();
+  }
   
   float Px, Py, Pz;
 
@@ -391,24 +386,29 @@ void SetHome()
   Serial.print("Limit 2: "); Serial.println(digitalRead(limit_2));
   Serial.print("Limit 3: "); Serial.println(digitalRead(limit_3));
   while (!xHomed || !yHomed || !zHomed)
+  // while (!xHomed || !yHomed)
   {
     // Set home cho motor 1
     if (!xHomed)
     {
       if (digitalRead(limit_1) == LOW)
       {
-        StopMotor_1();
-        delay(50);
-        SetPosition_1();
-        xHomed = true;
-        Serial.println("Truc X da ve home.");
+        delay(10); // chống dội
+        if (digitalRead(limit_1) == LOW) // kiểm tra lại sau delay
+        {
+          StopMotor_1();
+          delay(50);
+          SetPosition_1();
+          xHomed = true;
+          Serial.println("Truc X da ve home.");
+        }
       }
       else
       {
         digitalWrite(PUL_PIN_1, HIGH);
-        delayMicroseconds(80);
+        delayMicroseconds(150); //80
         digitalWrite(PUL_PIN_1, LOW);
-        delayMicroseconds(80);
+        delayMicroseconds(150);
       }
     }
     // Set home cho motor 2
@@ -416,42 +416,49 @@ void SetHome()
     {
       if (digitalRead(limit_2) == LOW)
       {
-        StopMotor_2();
-        delay(50);
-        SetPosition_2();
-        yHomed = true;
-        Serial.println("Truc Y da ve home.");
+        delay(10); // chống dội
+        if (digitalRead(limit_2) == LOW) // kiểm tra lại sau delay
+        {
+          StopMotor_2();
+          delay(50);
+          SetPosition_2();
+          yHomed = true;
+          Serial.println("Truc Y da ve home.");
+        }
       }
       else
       {
         digitalWrite(PUL_PIN_2, HIGH);
-        delayMicroseconds(80);
+        delayMicroseconds(150);
         digitalWrite(PUL_PIN_2, LOW);
-        delayMicroseconds(80);
+        delayMicroseconds(150);
       }
     }
-    // Set home cho motor 3
+    // // Set home cho motor 3
     if (!zHomed)
     {
       if (digitalRead(limit_3) == LOW)
       {
-        StopMotor_3();
-        delay(50);
-        SetPosition_3();
-        zHomed = true;
-        Serial.println("Truc Z da ve home.");
+        delay(10); // chống dội
+        if (digitalRead(limit_3) == LOW) // kiểm tra lại sau delay
+        {
+          StopMotor_3();
+          delay(50);
+          SetPosition_3();
+          zHomed = true;
+          Serial.println("Truc Z da ve home.");
+        }
       }
       else
       {
         digitalWrite(PUL_PIN_3, HIGH);
-        delayMicroseconds(80);
+        delayMicroseconds(150);
         digitalWrite(PUL_PIN_3, LOW);
-        delayMicroseconds(80);
+        delayMicroseconds(150);
       }
     }
   }
   Serial.println("Da thoat khoi SetHome.");
-  ENA_Encoder = true;
 }
 void SetPosition_1()
 {
