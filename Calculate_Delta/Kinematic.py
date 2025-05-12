@@ -1,4 +1,5 @@
 # from math import *
+import numpy as np
 import math
 R_base = 60  # bán kính đế
 R_platform = 42.62  # bán kính platform
@@ -77,3 +78,42 @@ def forward_kinematic(theta1_deg, theta2_deg, theta3_deg):
     Pz = P[0][2] + x * ex[2] + y * ey[2] - z * ez[2]
 
     return True, Px, Py, Pz
+
+def inverse_kinematic(X_ee, Y_ee, Z_ee):
+    R_Base = 60
+    R_platform = 42.62  # Khoảng cách từ tâm end-effector tới khớp cầu
+    r = R_Base - R_platform  # Khoảng cách từ tâm top tới động cơ
+
+    re = 150  # Chiều dài cánh tay trên (mm)
+    rf = 350  # Chiều dài cánh tay dưới (mm)
+
+    # Z_ee = Z_ee+35.5
+    # Góc xoay động cơ
+    alpha = np.radians([0, 120, 240])
+    J = np.zeros(3)
+    threshold = 1e-3
+
+    for i in range(3):
+        cos_alpha = np.cos(alpha[i])
+        sin_alpha = np.sin(alpha[i])
+        A = -2 * re * (-r + X_ee * cos_alpha + Y_ee * sin_alpha)
+        B = -2 * re * Z_ee
+        C = (X_ee ** 2 + Y_ee ** 2 + Z_ee ** 2 + r ** 2 + re ** 2 - rf ** 2
+             - 2 * r * (X_ee * cos_alpha + Y_ee * sin_alpha))
+
+        denominator = np.sqrt(A ** 2 + B ** 2)
+        if denominator == 0 or abs(C / denominator) > 1:
+            raise ValueError("Không thể tính góc: giá trị trong acos không hợp lệ.")
+
+        theta_1 = np.arctan2(B, A) + np.arccos(-C / denominator)
+        theta_2 = np.arctan2(B, A) - np.arccos(-C / denominator)
+
+        theta = theta_2 if theta_1 > theta_2 else theta_1
+
+        if abs(theta) < threshold:
+            theta = 0
+
+        theta_deg = np.degrees(theta)
+        J[i] = -theta_deg
+
+    return J

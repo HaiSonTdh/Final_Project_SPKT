@@ -7,8 +7,8 @@ import Kinematic
 from PIL import Image, ImageTk
 
 # Setup Serial
-ser = serial.Serial('COM5', 9600)
-time.sleep(1)
+# ser = serial.Serial('COM5', 9600)
+# time.sleep(1)
 
 # Hàm điều khiển Arduino
 def send_angles():
@@ -57,6 +57,36 @@ def send_angles():
         print(f"Lỗi khi tính forward kinematic: {e}")
         messagebox.showerror("Lỗi", "Không thể tính vị trí. Kiểm tra lại hàm forward_kinematic.")
 
+def calculate_inv_kinematic():
+    try:
+        x_val = float(entry_input_x.get())
+        y_val = float(entry_input_y.get())
+        z_val = float(entry_input_z.get())
+
+        angles = Kinematic.inverse_kinematic(x_val, y_val, z_val)
+
+        entry_out1.config(state=tk.NORMAL)
+        entry_out1.delete(0, tk.END)
+        entry_out1.insert(0, f"{angles[0]:.2f}")
+        entry_out1.config(state='readonly')
+
+        entry_out2.config(state=tk.NORMAL)
+        entry_out2.delete(0, tk.END)
+        entry_out2.insert(0, f"{angles[1]:.2f}")
+        entry_out2.config(state='readonly')
+
+        entry_out3.config(state=tk.NORMAL)
+        entry_out3.delete(0, tk.END)
+        entry_out3.insert(0, f"{angles[2]:.2f}")
+        entry_out3.config(state='readonly')
+
+    except ValueError:
+        messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho X, Y, Z.")
+    except ValueError as e:
+        messagebox.showerror("Lỗi tính toán", str(e))
+    except Exception as e:
+        messagebox.showerror("Lỗi không xác định", f"Đã xảy ra lỗi: {e}")
+
 def set_home():
     ser.write(bytes('h' + '\r', 'utf-8'))
 def stop():
@@ -102,7 +132,7 @@ def send_theta3():
 # Giao diện chính
 window = tk.Tk()
 window.title("Gửi góc điều khiển tới Arduino")
-window.geometry("550x650")
+window.geometry("850x750")
 window.configure(bg="#f0f0f5")  # Màu nền nhẹ nhàng
 
 font_title = ("Arial", 20, "bold")
@@ -120,93 +150,294 @@ try:
     label_image.pack(pady=(10, 5))
 except Exception as e:
     print(f"Lỗi khi tải ảnh: {e}")
-title = tk.Label(window, text="Control Panel", font=font_title, bg="#f0f0f5", fg="#333")
-title.pack(pady=20)
+title = tk.Label(window, text="CONTROL PANEL", font=font_title, bg="#f0f0f5", fg="#333")
+title.pack(pady=10)
 
-# Frame cho các input
-frame_inputs = tk.Frame(window, bg="#f0f0f5")
-frame_inputs.pack(pady=10)
+# Frame chính chứa các phần bên trái và bên phải
+frame_main = tk.Frame(window, bg="#f0f0f5")
+frame_main.pack(pady=10, padx=20, fill="x") # Thêm padx và fill để frame chính rộng hơn
+
+# Inputs bên trái
+frame_inputs = tk.Frame(frame_main, bg="#f0f0f5")
+frame_inputs.pack(side=tk.LEFT, fill="y") # fill="y" để frame inputs cao bằng frame buttons
+
+label_for_kinematic = tk.Label(frame_inputs, text="FORWARD KINEMATIC", font=font_label, bg="#f0f0f5", fg="#333")
+label_for_kinematic.grid(row=0, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
 
 # Theta 1
 label_theta1 = tk.Label(frame_inputs, text="Theta 1 (°):", font=font_label, bg="#f0f0f5")
-label_theta1.grid(row=0, column=0, padx=10, pady=5)
+label_theta1.grid(row=1, column=0, padx=10, pady=5, sticky="w")
 entry_theta1 = tk.Entry(frame_inputs, font=font_entry, width=10)
-entry_theta1.grid(row=0, column=1, pady=5)
+entry_theta1.grid(row=1, column=1, pady=5)
 button_t1 = tk.Button(frame_inputs, text="Gửi", command=send_theta1, font=font_button, bg="#9C27B0", fg="white", width=6)
-button_t1.grid(row=0, column=2, padx=5)
+button_t1.grid(row=1, column=2, padx=5)
 
 # Theta 2
 label_theta2 = tk.Label(frame_inputs, text="Theta 2 (°):", font=font_label, bg="#f0f0f5")
-label_theta2.grid(row=1, column=0, padx=10, pady=5)
+label_theta2.grid(row=2, column=0, padx=10, pady=5, sticky="w")
 entry_theta2 = tk.Entry(frame_inputs, font=font_entry, width=10)
-entry_theta2.grid(row=1, column=1, pady=5)
+entry_theta2.grid(row=2, column=1, pady=5)
 button_t2 = tk.Button(frame_inputs, text="Gửi", command=send_theta2, font=font_button, bg="#FF9800", fg="white", width=6)
-button_t2.grid(row=1, column=2, padx=5)
+button_t2.grid(row=2, column=2, padx=5)
 
 # Theta 3
 label_theta3 = tk.Label(frame_inputs, text="Theta 3 (°):", font=font_label, bg="#f0f0f5")
-label_theta3.grid(row=2, column=0, padx=10, pady=5)
+label_theta3.grid(row=3, column=0, padx=10, pady=5, sticky="w")
 entry_theta3 = tk.Entry(frame_inputs, font=font_entry, width=10)
-entry_theta3.grid(row=2, column=1, pady=5)
+entry_theta3.grid(row=3, column=1, pady=5)
 button_t3 = tk.Button(frame_inputs, text="Gửi", command=send_theta3, font=font_button, bg="#3F51B5", fg="white", width=6)
-button_t3.grid(row=2, column=2, padx=5)
+button_t3.grid(row=3, column=2, padx=5)
 
 # Nhãn "Vị trí (mm):"
-label_result = tk.Label(frame_inputs, text="Vị trí (mm):", font=font_label, bg="#f0f0f5")
-label_result.grid(row=3, column=0, padx=10, pady=(20, 5), sticky="w")
+label_result = tk.Label(frame_inputs, text="Tọa độ (mm):", font=font_label, bg="#f0f0f5")
+label_result.grid(row=4, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
 
-# X, Y, Z nằm ngang hàng
+# X, Y, Z nằm ngang hàng và canh đều
 label_x = tk.Label(frame_inputs, text="X:", font=font_label, bg="#f0f0f5")
-label_x.grid(row=4, column=0, padx=5, pady=5)
-entry_x = tk.Entry(frame_inputs, font=font_entry, width=10, state='readonly')
-entry_x.grid(row=4, column=1, pady=5)
+label_x.grid(row=5, column=0, padx=(10, 2), pady=5, sticky="e")
+entry_x = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_x.grid(row=5, column=1, padx=(0, 20), pady=5) # Tăng padx bên phải
 
 label_y = tk.Label(frame_inputs, text="Y:", font=font_label, bg="#f0f0f5")
-label_y.grid(row=4, column=2, padx=5, pady=5)
-entry_y = tk.Entry(frame_inputs, font=font_entry, width=10, state='readonly')
-entry_y.grid(row=4, column=3, pady=5)
+label_y.grid(row=5, column=2, padx=(20, 2), pady=5, sticky="e") # Tăng padx bên trái
+entry_y = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_y.grid(row=5, column=3, padx=(0, 20), pady=5) # Tăng padx bên phải
 
 label_z = tk.Label(frame_inputs, text="Z:", font=font_label, bg="#f0f0f5")
-label_z.grid(row=4, column=4, padx=5, pady=5)
-entry_z = tk.Entry(frame_inputs, font=font_entry, width=10, state='readonly')
-entry_z.grid(row=4, column=5, pady=5)
+label_z.grid(row=5, column=4, padx=(20, 2), pady=5, sticky="e") # Tăng padx bên trái
+entry_z = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_z.grid(row=5, column=5, padx=(0, 10), pady=5)
 
-# Frame cho các nút
-frame_buttons = tk.Frame(window, bg="#f0f0f5")
-frame_buttons.pack(pady=10)
+label_inv_kinematic = tk.Label(frame_inputs, text="INVERSE KINEMATIC", font=font_label, bg="#f0f0f5", fg="#333")
+label_inv_kinematic.grid(row=6, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
 
-# Nút Set Home
-button_home = tk.Button(frame_buttons, text="SET HOME", command=set_home, font=font_button, bg="#4CAF50", fg="white", activebackground="#45a049", width=15)
-button_home.grid(row=0, column=0, padx=10, pady=10)
+# Nhập X, Y, Z (Inverse Kinematic)
+label_input_x = tk.Label(frame_inputs, text="X:", font=font_label, bg="#f0f0f5")
+label_input_x.grid(row=7, column=0, padx=10, pady=5, sticky="w")
+entry_input_x = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_x.grid(row=7, column=1, padx=5, pady=5)
 
-# Nút Send Data
-button_send = tk.Button(frame_buttons, text="SEND DATA", command=send_angles, font=font_button, bg="#008CBA", fg="white", activebackground="#007bb5", width=15)
-button_send.grid(row=0, column=1, padx=10, pady=10)
+label_input_y = tk.Label(frame_inputs, text="Y:", font=font_label, bg="#f0f0f5")
+label_input_y.grid(row=8, column=0, padx=10, pady=5, sticky="w")
+entry_input_y = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_y.grid(row=8, column=1, padx=5, pady=5)
 
-# Nút Stop
-button_stop = tk.Button(frame_buttons, text="STOP", command=stop, font=font_button, bg="#f44336", fg="white", activebackground="#d32f2f", width=15)
-button_stop.grid(row=0, column=2, padx=10, pady=10)
+label_input_z = tk.Label(frame_inputs, text="Z:", font=font_label, bg="#f0f0f5")
+label_input_z.grid(row=9, column=0, padx=10, pady=5, sticky="w")
+entry_input_z = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_z.grid(row=9, column=1, padx=5, pady=5)
 
-# Nút Hút Nam Châm
-button_hut = tk.Button(frame_buttons, text="UP", command=hut_namcham, font=font_button, bg="#009688", fg="white", activebackground="#00796B", width=15)
-button_hut.grid(row=1, column=0, padx=10, pady=5)
+# Nút tính toán Inverse Kinematic
+btn_calc_ik = tk.Button(
+    frame_inputs, text="Tính IK", command=calculate_inv_kinematic,
+    font=font_button, bg="#607D8B", fg="white", width=12
+)
+btn_calc_ik.grid(row=10, column=0, columnspan=2, pady=10)
 
-# Nút Thả Nam Châm
-button_tha = tk.Button(frame_buttons, text="DOWN", command=tha_namcham, font=font_button, bg="#795548", fg="white", activebackground="#5D4037", width=15)
-button_tha.grid(row=1, column=1, padx=10, pady=5)
+# Hiển thị kết quả Inverse Kinematic
+label_out1 = tk.Label(frame_inputs, text="Theta 1:", font=font_label, bg="#f0f0f5")
+label_out1.grid(row=7, column=2, padx=5, pady=5, sticky="w")
+entry_out1 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out1.grid(row=7, column=3, padx=(0, 10), pady=5)
 
-# Text Box nhận dữ liệu
-frame_text = tk.Frame(window)
-frame_text.pack(pady=20)
+label_out2 = tk.Label(frame_inputs, text="Theta 2:", font=font_label, bg="#f0f0f5")
+label_out2.grid(row=8, column=2, padx=5, pady=5, sticky="w")
+entry_out2 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out2.grid(row=8, column=3, padx=(0, 10), pady=5)
 
-text_box = tk.Text(frame_text, font=("Courier New", 11), width=50, height=12)
-text_box.pack(side=tk.LEFT)
+label_out3 = tk.Label(frame_inputs, text="Theta 3:", font=font_label, bg="#f0f0f5")
+label_out3.grid(row=9, column=2, padx=5, pady=5, sticky="w")
+entry_out3 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out3.grid(row=9, column=3, padx=(0, 10), pady=5)
 
-scrollbar = tk.Scrollbar(frame_text, command=text_box.yview)
+# # Hiển thị kết quả Inverse Kinematic
+# label_out1 = tk.Label(frame_inputs, text="Theta 1:", font=font_label, bg="#f0f0f5")
+# label_out1.grid(row=7, column=2, padx=5, pady=5, sticky="w")
+# entry_out1 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+# entry_out1.grid(row=7, column=3, padx=(0, 10), pady=5)
+#
+# label_out2 = tk.Label(frame_inputs, text="Theta 2:", font=font_label, bg="#f0f0f5")
+# label_out2.grid(row=8, column=2, padx=5, pady=5, sticky="w")
+# entry_out2 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+# entry_out2.grid(row=8, column=3, padx=(0, 10), pady=5)
+#
+# label_out3 = tk.Label(frame_inputs, text="Theta 3:", font=font_label, bg="#f0f0f5")
+# label_out3.grid(row=9, column=2, padx=5, pady=5, sticky="w")
+# entry_out3 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+# entry_out3.grid(row=9, column=3, padx=(0, 10), pady=5)
+
+
+# Nút điều khiển bên phải
+frame_buttons = tk.Frame(frame_main, bg="#f0f0f5")
+frame_buttons.pack(side=tk.RIGHT, padx=20, fill="y") # fill="y" để frame buttons cao bằng frame inputs
+
+button_home = tk.Button(frame_buttons, text="SET HOME", command=set_home,
+                        font=font_button, bg="#4CAF50", fg="white", width=15)
+button_home.pack(pady=5, fill="x") # fill="x" để nút rộng bằng frame
+
+button_send = tk.Button(frame_buttons, text="SEND DATA", command=send_angles,
+                        font=font_button, bg="#008CBA", fg="white", width=15)
+button_send.pack(pady=5, fill="x")
+
+button_stop = tk.Button(frame_buttons, text="STOP", command=stop,
+                        font=font_button, bg="#f44336", fg="white", width=15)
+button_stop.pack(pady=5, fill="x")
+
+button_hut = tk.Button(frame_buttons, text="UP", command=hut_namcham,
+                       font=font_button, bg="#009688", fg="white", width=15)
+button_hut.pack(pady=5, fill="x")
+
+button_tha = tk.Button(frame_buttons, text="DOWN", command=tha_namcham,
+                       font=font_button, bg="#795548", fg="white", width=15)
+button_tha.pack(pady=5, fill="x")
+
+# Frame chứa text box ở giữa
+frame_text_center = tk.Frame(window, bg="#f0f0f5")
+frame_text_center.pack(pady=20) # Thêm pady để có khoảng cách trên dưới
+
+text_box = tk.Text(frame_text_center, font=("Courier New", 11), width=60, height=10)
+text_box.pack(side=tk.LEFT, fill="both", expand=True) # fill và expand để text box lấp đầy frame
+
+scrollbar = tk.Scrollbar(frame_text_center, command=text_box.yview)
 scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 text_box.config(yscrollcommand=scrollbar.set)
 
-# Thread đọc Serial
+# Thread đọc Serial (vẫn giữ nguyên vị trí)
+serial_thread = threading.Thread(target=read_serial)
+serial_thread.daemon = True
+serial_thread.start()
+
+window.mainloop()# Tiêu đề (nằm ngay dưới ảnh)
+title = tk.Label(window, text="CONTROL PANEL", font=font_title, bg="#f0f0f5", fg="#333")
+title.pack(pady=10)
+
+# Frame chính chứa các phần bên trái và bên phải
+frame_main = tk.Frame(window, bg="#f0f0f5")
+frame_main.pack(pady=10, padx=20, fill="x") # Thêm padx và fill để frame chính rộng hơn
+
+# Inputs bên trái
+frame_inputs = tk.Frame(frame_main, bg="#f0f0f5")
+frame_inputs.pack(side=tk.LEFT, fill="y") # fill="y" để frame inputs cao bằng frame buttons
+
+label_for_kinematic = tk.Label(frame_inputs, text="FORWARD KINEMATIC", font=font_label, bg="#f0f0f5", fg="#333")
+label_for_kinematic.grid(row=0, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
+
+# Theta 1
+label_theta1 = tk.Label(frame_inputs, text="Theta 1 (°):", font=font_label, bg="#f0f0f5")
+label_theta1.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+entry_theta1 = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_theta1.grid(row=1, column=1, pady=5)
+button_t1 = tk.Button(frame_inputs, text="Gửi", command=send_theta1, font=font_button, bg="#9C27B0", fg="white", width=6)
+button_t1.grid(row=1, column=2, padx=5)
+
+# Theta 2
+label_theta2 = tk.Label(frame_inputs, text="Theta 2 (°):", font=font_label, bg="#f0f0f5")
+label_theta2.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+entry_theta2 = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_theta2.grid(row=2, column=1, pady=5)
+button_t2 = tk.Button(frame_inputs, text="Gửi", command=send_theta2, font=font_button, bg="#FF9800", fg="white", width=6)
+button_t2.grid(row=2, column=2, padx=5)
+
+# Theta 3
+label_theta3 = tk.Label(frame_inputs, text="Theta 3 (°):", font=font_label, bg="#f0f0f5")
+label_theta3.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+entry_theta3 = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_theta3.grid(row=3, column=1, pady=5)
+button_t3 = tk.Button(frame_inputs, text="Gửi", command=send_theta3, font=font_button, bg="#3F51B5", fg="white", width=6)
+button_t3.grid(row=3, column=2, padx=5)
+
+# Nhãn "Vị trí (mm):"
+label_result = tk.Label(frame_inputs, text="Tọa độ (mm):", font=font_label, bg="#f0f0f5")
+label_result.grid(row=4, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
+
+# X, Y, Z nằm ngang hàng và gần nhau hơn
+label_x = tk.Label(frame_inputs, text="X:", font=font_label, bg="#f0f0f5")
+label_x.grid(row=5, column=0, padx=(10, 2), pady=5, sticky="w")
+entry_x = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_x.grid(row=5, column=1, padx=(0, 5), pady=5)
+
+label_y = tk.Label(frame_inputs, text="Y:", font=font_label, bg="#f0f0f5")
+label_y.grid(row=5, column=2, padx=(5, 2), pady=5, sticky="w")
+entry_y = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_y.grid(row=5, column=3, padx=(0, 5), pady=5)
+
+label_z = tk.Label(frame_inputs, text="Z:", font=font_label, bg="#f0f0f5")
+label_z.grid(row=5, column=4, padx=(5, 2), pady=5, sticky="w")
+entry_z = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_z.grid(row=5, column=5, padx=(0, 10), pady=5)
+
+label_inv_kinematic = tk.Label(frame_inputs, text="INVERSE KINEMATIC", font=font_label, bg="#f0f0f5", fg="#333")
+label_inv_kinematic.grid(row=6, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
+
+# Nhập X, Y, Z (Inverse Kinematic)
+label_input_x = tk.Label(frame_inputs, text="X:", font=font_label, bg="#f0f0f5")
+label_input_x.grid(row=7, column=0, padx=10, pady=5, sticky="w")
+entry_input_x = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_x.grid(row=7, column=1, padx=5, pady=5)
+
+label_input_y = tk.Label(frame_inputs, text="Y:", font=font_label, bg="#f0f0f5")
+label_input_y.grid(row=8, column=0, padx=10, pady=5, sticky="w")
+entry_input_y = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_y.grid(row=8, column=1, padx=5, pady=5)
+
+label_input_z = tk.Label(frame_inputs, text="Z:", font=font_label, bg="#f0f0f5")
+label_input_z.grid(row=9, column=0, padx=10, pady=5, sticky="w")
+entry_input_z = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_z.grid(row=9, column=1, padx=5, pady=5)
+
+# Hiển thị kết quả Inverse Kinematic
+label_out1 = tk.Label(frame_inputs, text="Theta 1:", font=font_label, bg="#f0f0f5")
+label_out1.grid(row=7, column=2, padx=5, pady=5, sticky="w")
+entry_out1 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out1.grid(row=7, column=3, padx=(0, 10), pady=5)
+
+label_out2 = tk.Label(frame_inputs, text="Theta 2:", font=font_label, bg="#f0f0f5")
+label_out2.grid(row=8, column=2, padx=5, pady=5, sticky="w")
+entry_out2 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out2.grid(row=8, column=3, padx=(0, 10), pady=5)
+
+label_out3 = tk.Label(frame_inputs, text="Theta 3:", font=font_label, bg="#f0f0f5")
+label_out3.grid(row=9, column=2, padx=5, pady=5, sticky="w")
+entry_out3 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out3.grid(row=9, column=3, padx=(0, 10), pady=5)
+
+
+# Nút điều khiển bên phải
+frame_buttons = tk.Frame(frame_main, bg="#f0f0f5")
+frame_buttons.pack(side=tk.RIGHT, padx=20, fill="y") # fill="y" để frame buttons cao bằng frame inputs
+
+button_home = tk.Button(frame_buttons, text="SET HOME", command=set_home,
+                        font=font_button, bg="#4CAF50", fg="white", width=15)
+button_home.pack(pady=5, fill="x") # fill="x" để nút rộng bằng frame
+
+button_send = tk.Button(frame_buttons, text="SEND DATA", command=send_angles,
+                        font=font_button, bg="#008CBA", fg="white", width=15)
+button_send.pack(pady=5, fill="x")
+
+button_stop = tk.Button(frame_buttons, text="STOP", command=stop,
+                        font=font_button, bg="#f44336", fg="white", width=15)
+button_stop.pack(pady=5, fill="x")
+
+button_hut = tk.Button(frame_buttons, text="UP", command=hut_namcham,
+                       font=font_button, bg="#009688", fg="white", width=15)
+button_hut.pack(pady=5, fill="x")
+
+button_tha = tk.Button(frame_buttons, text="DOWN", command=tha_namcham,
+                       font=font_button, bg="#795548", fg="white", width=15)
+button_tha.pack(pady=5, fill="x")
+
+# Frame chứa text box ở giữa
+frame_text_center = tk.Frame(window, bg="#f0f0f5")
+frame_text_center.pack(pady=20) # Thêm pady để có khoảng cách trên dưới
+
+text_box = tk.Text(frame_text_center, font=("Courier New", 11), width=60, height=10)
+text_box.pack(side=tk.LEFT, fill="both", expand=True) # fill và expand để text box lấp đầy frame
+
+scrollbar = tk.Scrollbar(frame_text_center, command=text_box.yview)
+scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+text_box.config(yscrollcommand=scrollbar.set)
+
+# Thread đọc Serial (vẫn giữ nguyên vị trí)
 serial_thread = threading.Thread(target=read_serial)
 serial_thread.daemon = True
 serial_thread.start()
