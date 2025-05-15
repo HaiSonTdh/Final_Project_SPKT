@@ -5,13 +5,6 @@
 #define PUL_PIN_3 30   
 #define DIR_PIN_3 32
 
-// #define PUL_PIN_1 265   // Chân xung
-// #define DIR_PIN_1 345   // Chân hướng quay
-// #define PUL_PIN_2 24
-// #define DIR_PIN_2 33
-// #define PUL_PIN_3 268   
-// #define DIR_PIN_3 349
-
 //Khai báo chân đọc encoder
 #define pinA_1 2
 #define pinB_1 3
@@ -22,12 +15,12 @@
 
 #define READ_A_1 digitalRead(pinA_1)
 #define READ_B_1 digitalRead(pinB_1)
-#define READ_A_2 (PIND & (1 << PIND3))  // PIND2 = chân 18
+#define READ_A_2 (PIND & (1 << PIND3))  // PIND2 = chân 18 
 #define READ_B_2 (PIND & (1 << PIND2))  // PIND3 = chân 19
 #define READ_A_3 (PIND & (1 << PIND1))  // PIND là thanh ghi trạng thái (register) chứa dữ liệu của các chân digital 0 - 7 (tức là PORTD).
 #define READ_B_3 (PIND & (1 << PIND0))  // Shift bit 1 sang trái 2 lần → 0b00000100
                                         // dùng phép AND để kiểm tra xem bit số 2 (chân 18) đang ở mức HIGH hay LOW 
-
+                                        // -> đọc nhanh trạng thái chân 18,19 bằng cách truy xuất trực tiếp thanh ghi và kiểm tra bit thứ 2,3
 const int limit_1 = 34;
 const int limit_2 = 36;
 const int limit_3 = 38;
@@ -36,8 +29,9 @@ const int namcham = 40;
 volatile long encoderPosition_1 = 0;
 volatile long encoderPosition_2 = 0;
 volatile long encoderPosition_3 = 0;
-volatile bool A_set = false;
-volatile bool B_set = false;
+volatile float encoderCalibrated_1 = 0.0;
+float encoderGainThuan = 10000.0 / 5547.0;   // ≈ 1.817
+float encoderGainNghich = 10000.0 / 4982.0;  // ≈ 1.602
 
 float nPulse_1;
 float deg1 = 0.0;
@@ -66,8 +60,16 @@ unsigned long endTime_1,endTime_2,endTime_3;
 unsigned long lastPrintTime = 0;
 
 unsigned long delay_run_spd = 1000;
-unsigned long delay_home_spd = 1500;
-unsigned long pulperrev = 1000;
+unsigned long delay_home_spd = 1000;
+unsigned long pulperrev = 200;
+
+volatile int lastDir_1_encoder = 1;  // 1 = thuận, -1 = nghịch
+volatile int lastDir_2_encoder = 1;  // 1 = thuận, -1 = nghịch
+volatile int lastDir_3_encoder = 1; // 1 = thuận, -1 = nghịch
+long encoderRawLast_1 = 0;
+long encoderRawNow_1 = 0;
+long delta_1 = 0;
+
 
 void setup() 
 {
@@ -107,7 +109,6 @@ void loop()
   {
     String input = Serial.readStringUntil('\n');
     input.trim();
-    // delayMicroseconds(1);
     Serial.println("Received: " + input); 
     if (input[0] == 's') 
     {
@@ -144,50 +145,45 @@ void loop()
     
       if (input[x] == 'A') 
       {
-        // delay(200);
         deg1 = inString.toFloat();
         Degree_1(deg1, deg1_old);
-        
         deg1_old = deg1;
         inString = " ";
       } 
-        
       else if (input[x] == 'B') 
       {
         deg2 = inString.toFloat();
-        // delay(500);
         Degree_2(deg2, deg2_old);
-        
         deg2_old = deg2;
         inString = " ";
-        // delay(500);
       }
       else if (input[x] == 'C') 
       {
-        // delay(500); 
         deg3 = inString.toFloat();
         inString = " ";
         Degree_3(deg3, deg3_old);
-        
         deg3_old = deg3;
-        // delay(500);
       }
     }
   }
-  float theta1 = deg1;
-  float theta2 = deg2;
-  float theta3 = deg3;
-  RunMotor_1();
-  RunMotor_2();
-  RunMotor_3();
-
+  encoderRawNow_1 = encoderPosition_1;
+  delta_1 = encoderRawNow_1 - encoderRawLast_1;
+  encoderRawLast_1 = encoderRawNow_1;
+  
+  if (lastDir_1_encoder == 1)
+    encoderCalibrated_1 += delta_1 * encoderGainThuan;
+  else
+    encoderCalibrated_1 += delta_1 * encoderGainNghich;
   if (millis() - lastPrintTime >= 2000) 
   { 
-      Serial.print("Encoder 1: "); Serial.print(encoderPosition_1);  Serial.print("  ");
-      Serial.print("Encoder 2: "); Serial.print(encoderPosition_2);  Serial.print("  ");
+      Serial.print("Encoder 1: "); Serial.print((long)encoderCalibrated_1);  Serial.print("  ");
+      Serial.print("Encoder 2: "); Serial.print(encoderPosition_1);  Serial.print("  ");
       Serial.print("Encoder 3: "); Serial.println(encoderPosition_3);  
       lastPrintTime = millis();
   }
+  RunMotor_1();
+  RunMotor_2();
+  RunMotor_3();
 }
 
 ////////////////////////////////////////CALCULATE ANGLE////////////////////////////////////////
@@ -197,17 +193,16 @@ void Degree_1(float deg, float deg_old)
   {
     digitalWrite(DIR_PIN_1, 0);
     degree1 = abs(deg - deg_old);
-    Serial.println("nghich"); 
+    lastDir_1_encoder = -1;
   } 
   else
   {
     digitalWrite(DIR_PIN_1, 1);
     degree1 = abs(deg - deg_old);
-    Serial.println("thuan"); 
+    lastDir_1_encoder = 1;
   }
   nPulse_1 = degree1 * 8 * pulperrev / 360;
   motorRunning_1 = true;
-
   startTime_1 = millis();
 }
 
@@ -217,14 +212,15 @@ void Degree_2(float deg, float deg_old)
   {
     digitalWrite(DIR_PIN_2, 0);
     degree2 = abs(deg - deg_old);
+    lastDir_2_encoder = -1;
   } 
   else
   {
     digitalWrite(DIR_PIN_2, 1);
     degree2 = abs(deg - deg_old);
+    lastDir_2_encoder = 1;
   }
   nPulse_2 = degree2 * 8 * pulperrev / 360;
-  // nPulse_2 = degree2 * 10000;
   motorRunning_2 = true;
   startTime_2 = millis();
 }
@@ -235,14 +231,15 @@ void Degree_3(float deg, float deg_old)
   {
     digitalWrite(DIR_PIN_3, 0);
     degree3 = abs(deg - deg_old);
+    lastDir_3_encoder = -1;
   } 
   else
   {
     digitalWrite(DIR_PIN_3, 1);
     degree3 = abs(deg - deg_old);
+    lastDir_3_encoder = 1;
   }
   nPulse_3 = degree3 * 8 * pulperrev / 360;
-  // nPulse_3 = degree3 * 10000;
   motorRunning_3 = true;
   startTime_3 = millis();
 }
@@ -352,9 +349,7 @@ void StopMotor_3()
 void SetHome()
 {
   digitalWrite(DIR_PIN_1,0);
-  delayMicroseconds(20);
   digitalWrite(DIR_PIN_2,0);
-  delayMicroseconds(20);
   digitalWrite(DIR_PIN_3,0);
   delayMicroseconds(20);
   bool xHomed = false; // Cờ để kiểm tra trục X đã về gốc
@@ -365,54 +360,54 @@ void SetHome()
   Serial.print("Limit 2: "); Serial.println(digitalRead(limit_2));
   Serial.print("Limit 3: "); Serial.println(digitalRead(limit_3));
   // while (!xHomed || !yHomed || !zHomed)
-  while (!yHomed)
+  while (!xHomed)
   {
     // Set home cho motor 1
-    // if (!xHomed)
-    // {
-    //   if (digitalRead(limit_1) == LOW)
-    //   {
-    //     delay(10); // chống dội
-    //     if (digitalRead(limit_1) == LOW) // kiểm tra lại sau delay
-    //     {
-    //       StopMotor_1();
-    //       delay(50);
-    //       SetPosition_1();
-    //       xHomed = true;
-    //       Serial.println("Truc X da ve home.");
-    //     }
-    //   }
-    //   else
-    //   {
-    //     digitalWrite(PUL_PIN_1, HIGH);
-    //     delayMicroseconds(delay_home_spd); //80
-    //     digitalWrite(PUL_PIN_1, LOW);
-    //     delayMicroseconds(delay_home_spd);
-    //   }
-    // }
-    // Set home cho motor 2
-    if (!yHomed)
+    if (!xHomed)
     {
-      if (digitalRead(limit_2) == LOW)
+      if (digitalRead(limit_1) == LOW)
       {
         delay(10); // chống dội
-        if (digitalRead(limit_2) == LOW) // kiểm tra lại sau delay
+        if (digitalRead(limit_1) == LOW) // kiểm tra lại sau delay
         {
-          StopMotor_2();
+          StopMotor_1();
           delay(50);
-          SetPosition_2();
-          yHomed = true;
-          Serial.println("Truc Y da ve home.");
+          SetPosition_1();
+          xHomed = true;
+          Serial.println("Truc X da ve home.");
         }
       }
       else
       {
-        digitalWrite(PUL_PIN_2, HIGH);
-        delayMicroseconds(delay_home_spd);
-        digitalWrite(PUL_PIN_2, LOW);
+        digitalWrite(PUL_PIN_1, HIGH);
+        delayMicroseconds(delay_home_spd); //80
+        digitalWrite(PUL_PIN_1, LOW);
         delayMicroseconds(delay_home_spd);
       }
     }
+    // Set home cho motor 2
+    // if (!yHomed)
+    // {
+    //   if (digitalRead(limit_2) == LOW)
+    //   {
+    //     delay(10); // chống dội
+    //     if (digitalRead(limit_2) == LOW) // kiểm tra lại sau delay
+    //     {
+    //       StopMotor_2();
+    //       delay(50);
+    //       SetPosition_2();
+    //       yHomed = true;
+    //       Serial.println("Truc Y da ve home.");
+    //     }
+    //   }
+    //   else
+    //   {
+    //     digitalWrite(PUL_PIN_2, HIGH);
+    //     delayMicroseconds(delay_home_spd);
+    //     digitalWrite(PUL_PIN_2, LOW);
+    //     delayMicroseconds(delay_home_spd);
+    //   }
+    // }
     // // Set home cho motor 3
     // if (!zHomed)
     // {
@@ -453,7 +448,7 @@ void SetHome()
     RunMotor_2();
     RunMotor_3();
   }
-  delay(50);
+  delay(350);
   // reset gốc tọa độ mới
   SetPosition_1();
   SetPosition_2();
@@ -467,8 +462,13 @@ void SetPosition_1()
   deg1 = 0.0;
   deg1_old = 0.0;
   degree1 = 0.0;
+
+  encoderRawLast_1 = 0;
+  encoderRawNow_1 = 0;
+  delta_1 = 0;
   
   encoderPosition_1 = 0;
+  encoderCalibrated_1 = 0;
   nPulse_1 = 0; 
   delayMicroseconds(50);
   attachInterrupt(digitalPinToInterrupt(pinA_1), handleA_1, CHANGE);
@@ -507,61 +507,100 @@ void SetPosition_3()
 // Hàm đếm xung encoder khi có sự thay đổi trạng thái
 // TTL: Transistor-Transistor Logic,  hoạt động trong khoảng 0-5V
 void handleA_1() {
+  int delta = 0;
   if (READ_A_1) {
-    if (READ_B_1) encoderPosition_1--;
-    else encoderPosition_1++;
+    if (READ_B_1) delta = -1;
+    else delta = +1;
   } else {
-    if (READ_B_1) encoderPosition_1++;
-    else encoderPosition_1--;
+    if (READ_B_1) delta = +1;
+    else delta = -1;
   }
+  encoderPosition_1 += delta;
 }
 void handleB_1() {
+  int delta = 0;
   if (READ_B_1) {
-    if (READ_A_1) encoderPosition_1++;
-    else encoderPosition_1--;
+    if (READ_A_1) delta = +1;
+    else delta = -1;
   } else {
-    if (READ_A_1) encoderPosition_1--;
-    else encoderPosition_1++;
+    if (READ_A_1) delta = -1;
+    else delta = +1;
   }
+  encoderPosition_1 += delta;
 }
-
 void handleA_2() {
+  int delta_2 = 0;
   if (READ_A_2) {
-    if (READ_B_2) encoderPosition_2--;
-    else encoderPosition_2++;
+    if (READ_B_2) delta_2 = -1;
+    else delta_2 = +1;
   } else {
-    if (READ_B_2) encoderPosition_2++;
-    else encoderPosition_2--;
+    if (READ_B_2) delta_2 = +1;
+    else delta_2 = -1;
   }
+
+  // Sửa sai lệch: nhân hệ số nếu quay ngược
+  if (lastDir_2_encoder == -1) delta_2 *= 2;
+  encoderPosition_2 += delta_2;
 }
 void handleB_2() {
+  int delta_2 = 0;
   if (READ_B_2) {
-    if (READ_A_2) encoderPosition_2++;
-    else encoderPosition_2--;
+    if (READ_A_2) delta_2 = +1;
+    else delta_2 = -1;
   } else {
-    if (READ_A_2) encoderPosition_2--;
-    else encoderPosition_2++;
+    if (READ_A_2) delta_2 = -1;
+    else delta_2 = +1;
   }
+
+  // Sửa sai lệch: nhân hệ số nếu quay ngược
+  if (lastDir_2_encoder == -1) delta_2 *= 2;
+  encoderPosition_2 += delta_2;
 }
+// void handleA_2() {
+//   bool A = READ_A_2;
+//   bool B = READ_B_2;
+
+//   if (A == B) encoderPosition_2--;
+//   else encoderPosition_2++;
+// }
+
+// void handleB_2() {
+//   bool A = READ_A_2;
+//   bool B = READ_B_2;
+
+//   if (A != B) encoderPosition_2--;
+//   else encoderPosition_2++;
+// }
 
 void handleA_3() {
+  int delta_3 = 0;
   if (READ_A_3) {
-    if (READ_B_3) encoderPosition_3--;
-    else encoderPosition_3++;
+    if (READ_B_3) delta_3 = -1;
+    else delta_3 = +1;
   } else {
-    if (READ_B_3) encoderPosition_3++;
-    else encoderPosition_3--;
+    if (READ_B_3) delta_3 = +1;
+    else delta_3 = -1;
   }
+
+  // Sửa sai lệch: nhân hệ số nếu quay ngược
+  if (lastDir_3_encoder == -1) delta_3 *= 2;
+  encoderPosition_3 += delta_3;
 }
 void handleB_3() {
+  int delta_3 = 0;
   if (READ_B_3) {
-    if (READ_A_3) encoderPosition_3++;
-    else encoderPosition_3--;
+    if (READ_A_3) delta_3 = +1;
+    else delta_3 = -1;
   } else {
-    if (READ_A_3) encoderPosition_3--;
-    else encoderPosition_3++;
+    if (READ_A_3) delta_3 = -1;
+    else delta_3 = +1;
   }
+
+  // Sửa sai lệch: nhân hệ số nếu quay ngược
+  if (lastDir_3_encoder == -1) delta_3 *= 2;
+  encoderPosition_3 += delta_3;
 }
+
 /////////////////////////////////////////////KINEMATIC/////////////////////////////////////
 
 // Cấu hình hình học robot
@@ -651,4 +690,3 @@ bool ForwardKinematicUpdate(float theta1_deg, float theta2_deg, float theta3_deg
 
     return true;
 }
-
