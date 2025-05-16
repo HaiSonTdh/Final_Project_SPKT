@@ -117,3 +117,17 @@ def inverse_kinematic(X_ee, Y_ee, Z_ee):
         J[i] = -theta_deg
 
     return J
+def trajectory_planning_2_point(t, P0, Pf, tf):
+    def compute_axis(p0, pf, t):
+        delta = pf - p0
+        a0 = p0
+        a1 = a2 = 0
+        a3 = 10 * delta / tf**3
+        a4 = -15 * delta / tf**4
+        a5 = 6 * delta / tf**5
+        return a0 + a1*t + a2*t**2 + a3*t**3 + a4*t**4 + a5*t**5
+
+    x = compute_axis(P0[0], Pf[0], t)
+    y = compute_axis(P0[1], Pf[1], t)
+    z = compute_axis(P0[2], Pf[2], t)
+    return x, y, z
