@@ -7,7 +7,7 @@ import Kinematic
 from PIL import Image, ImageTk
 
 # Setup Serial
-ser = serial.Serial('COM7', 9600)
+ser = serial.Serial('COM7', 115200)
 time.sleep(1)
 
 # Hàm điều khiển Arduino
@@ -86,43 +86,61 @@ def calculate_inv_kinematic():
         messagebox.showerror("Lỗi tính toán", str(e))
     except Exception as e:
         messagebox.showerror("Lỗi không xác định", f"Đã xảy ra lỗi: {e}")
-def run_trajectory(P0, Pf, tf=3.0, dt=0.1):
-    t = 0
-    while t <= tf:
-        x, y, z = Kinematic.trajectory_planning_2_point(t, P0, Pf, tf)
-        try:
-            theta1, theta2, theta3 = Kinematic.inverse_kinematic(x, y, z)
-            data = f"{theta1:.2f}A{theta2:.2f}B{theta3:.2f}C\r"
-            print(f"[{t:.2f}s] Gửi: {data.strip()}")
-            ser.write(data.encode())
-            while True:
-                if ser.in_waiting > 0:
-                    resp = ser.readline().decode().strip()
-                    if resp == "OK":
-                        break
-            time.sleep(dt)
-            t += dt
-        except Exception as e:
-            print(f"Lỗi tại t={t:.2f}s: {e}")
-            break
-def start_trajectory():
+# def run_trajectory(P0, Pf, tf=3.0, dt=0.1):
+#     t = 0
+#     while t <= tf:
+#         x, y, z = Kinematic.trajectory_planning_2_point(t, P0, Pf, tf)
+#         try:
+#             theta1, theta2, theta3 = Kinematic.inverse_kinematic(x, y, z)
+#             data = f"{theta1:.2f}A{theta2:.2f}B{theta3:.2f}C\r"
+#             print(f"[{t:.2f}s] Gửi: {data.strip()}")
+#             ser.write(data.encode())
+#             while True:
+#                 if ser.in_waiting > 0:
+#                     resp = ser.readline().decode().strip()
+#                     if resp == "OK":
+#                         break
+#             time.sleep(dt)
+#             t += dt
+#         except Exception as e:
+#             print(f"Lỗi tại t={t:.2f}s: {e}")
+#             break
+def send_trajectory():
     try:
-        # Lấy P0
         x0 = float(entry_x0.get())
         y0 = float(entry_y0.get())
         z0 = float(entry_z0.get())
-
-        # Lấy Pf
         xf = float(entry_xf.get())
         yf = float(entry_yf.get())
         zf = float(entry_zf.get())
+        tf = float(entry_tf.get())  # thêm ô nhập tf
 
-        tf = 5.0  # thời gian quỹ đạo, bạn có thể thêm ô nhập nếu muốn chỉnh thời gian
-
-        threading.Thread(target=run_trajectory, args=((x0, y0, z0), (xf, yf, zf), tf)).start()
+        # Gửi dạng: x0,y0,z0|xf,yf,zf|tf
+        data = f"{x0},{y0},{z0}|{xf},{yf},{zf}|{tf}\r"
+        ser.write(data.encode())
+        print(f"Gửi: {data.strip()}")
 
     except Exception as e:
-        messagebox.showerror("Lỗi", f"Không thể khởi động quỹ đạo: {e}")
+        messagebox.showerror("Lỗi", str(e))
+
+# def start_trajectory():
+#     try:
+#         # Lấy P0
+#         x0 = float(entry_x0.get())
+#         y0 = float(entry_y0.get())
+#         z0 = float(entry_z0.get())
+#
+#         # Lấy Pf
+#         xf = float(entry_xf.get())
+#         yf = float(entry_yf.get())
+#         zf = float(entry_zf.get())
+#
+#         tf = 5.0  # thời gian quỹ đạo, bạn có thể thêm ô nhập nếu muốn chỉnh thời gian
+#
+#         threading.Thread(target=run_trajectory, args=((x0, y0, z0), (xf, yf, zf), tf)).start()
+#
+#     except Exception as e:
+#         messagebox.showerror("Lỗi", f"Không thể khởi động quỹ đạo: {e}")
 def set_home():
     ser.write(bytes('h' + '\r', 'utf-8'))
 def stop():
@@ -334,7 +352,7 @@ entry_z0 = tk.Entry(frame_p0, font=font_entry, width=6)
 entry_z0.pack(side=tk.LEFT, padx=2)
 
 # Điểm cuối Pf
-label_pf = tk.Label(frame_buttons, text="Pf: (Xf, Yf, Zf)", font=font_label, bg="#f0f0f5")
+label_pf = tk.Label(frame_buttons, text="Pf: (Xf, Yf, Zf, tf)", font=font_label, bg="#f0f0f5")
 label_pf.pack()
 
 frame_pf = tk.Frame(frame_buttons, bg="#f0f0f5")
@@ -349,8 +367,11 @@ entry_yf.pack(side=tk.LEFT, padx=2)
 entry_zf = tk.Entry(frame_pf, font=font_entry, width=6)
 entry_zf.pack(side=tk.LEFT, padx=2)
 
+entry_tf = tk.Entry(frame_pf, font=font_entry, width=6)
+entry_tf.pack(side=tk.LEFT, padx=2)
+
 # Nút chạy quỹ đạo
-button_traj = tk.Button(frame_buttons, text="CHẠY QUỸ ĐẠO", command=start_trajectory,
+button_traj = tk.Button(frame_buttons, text="CHẠY QUỸ ĐẠO", command=send_trajectory,
                         font=font_button, bg="#FF5722", fg="white", width=15)
 button_traj.pack(pady=10, fill="x")
 

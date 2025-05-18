@@ -1,3 +1,4 @@
+#include <math.h>
 #define PUL_PIN_1 22   // Chân xung
 #define DIR_PIN_1 24   // Chân hướng quay
 #define PUL_PIN_2 26
@@ -71,9 +72,14 @@ long encoderRawNow_1 = 0;
 long delta_1 = 0;
 volatile long encoderRaw_2 = 0;
 long lastEncoderRaw_2 = 0;    
+long delta_3 = 0;
 volatile long encoderRaw_3 = 0;      // Encoder chưa hiệu chỉnh (raw, đọc trong ISR)
 long lastEncoderRaw_3 = 0;           // Dùng để tính delta ngoài ISR
 
+float P0[3], Pf[3];
+float tf = 5.0;
+unsigned long t_start;
+bool trajectory_active = false;
 void setup() 
 {
   pinMode(PUL_PIN_1, OUTPUT);
@@ -107,13 +113,30 @@ void setup()
 // Nhập command: 10A20B30C --> motor1: 10 degree, motor2: 20 degree,...
 void loop() 
 {
-  // while (Serial.available()) 
   if (Serial.available()) 
   {
     String input = Serial.readStringUntil('\n');
     input.trim();
     Serial.println("Received: " + input); 
-    if (input[0] == 's') 
+    // if (parseTrajectoryCommand(input)) 
+    // {
+    //   trajectory_active = true;
+    //   t_start = millis();
+    // }
+    if (input.indexOf('A') != -1 || input.indexOf('B') != -1 || input.indexOf('C') != -1) 
+    {
+      handleAngleCommand(input);  // Xử lý điều khiển từng góc
+    }
+    // Nếu có dấu | → là quy hoạch quỹ đạo
+    else if (input.indexOf('|') != -1) 
+    {
+      if (parseTrajectoryCommand(input)) 
+      {
+        trajectory_active = true;
+        t_start = millis();
+      }
+    }
+    else if (input[0] == 's') 
     {
       StopMotor_1();
       StopMotor_2();
@@ -135,47 +158,32 @@ void loop()
       digitalWrite(namcham,0);
       inString = "";
     }
-    for (int x = 0; x < input.length(); x++) 
+  }
+  if (trajectory_active) 
+  {
+    float t_now = (millis() - t_start) / 1000.0;
+    if (t_now <= tf) 
     {
-      if ((input[x] == '-') || (input[x] == '.')) 
+      float x, y, z;
+      ComputeTrajectory(t_now, P0, Pf, tf, x, y, z); // bậc 5
+      float thetas[3];
+      if (inverse_kinematic(x, y, z, thetas))
       {
-        inString += (char)input[x];
+        runToAngle(1, thetas[0]);
+        runToAngle(2, thetas[1]);
+        runToAngle(3, thetas[2]);
       }
-      if (isDigit(input[x])) 
+      else 
       {
-        inString += (char)input[x];
+        Serial.println("Lỗi IK: Không tính được góc.");
+        trajectory_active = false;
+        StopMotor_1(); StopMotor_2(); StopMotor_3();
       }
-    
-      if (input[x] == 'A') 
-      {
-        deg1 = inString.toFloat();
-        if (abs(deg1 - deg1_old) > 0.1) 
-        {
-          Degree_1(deg1, deg1_old);
-          deg1_old = deg1;
-        }
-        inString = " ";
-      } 
-      else if (input[x] == 'B') 
-      {
-        deg2 = inString.toFloat();
-        if (abs(deg2 - deg2_old) > 0.1) 
-        {
-          Degree_2(deg2, deg2_old);
-          deg2_old = deg2;
-        }
-        inString = " ";
-      }
-      else if (input[x] == 'C') 
-      {
-        deg3 = inString.toFloat();
-        if (abs(deg3 - deg3_old) > 0.1) 
-        {
-          Degree_3(deg3, deg3_old);
-          deg3_old = deg3;
-        }
-        inString = " ";
-      }
+    } 
+    else 
+    {
+      trajectory_active = false;
+      StopMotor_1(); StopMotor_2(); StopMotor_3();
     }
   }
   encoderRawNow_1 = encoderPosition_1;
@@ -197,7 +205,7 @@ void loop()
   //     encoderPosition_2 += delta_2;
 
   long rawNow_3 = encoderRaw_3;
-  long delta_3 = rawNow_3 - lastEncoderRaw_3;
+  delta_3 = rawNow_3 - lastEncoderRaw_3;
   lastEncoderRaw_3 = rawNow_3;
 
   if (lastDir_3_encoder == -1)  // quay ngược
@@ -207,7 +215,7 @@ void loop()
 
   if (millis() - lastPrintTime >= 2000) 
   { 
-      Serial.print("Encoder 1: "); Serial.print(encoderPosition_1);  Serial.print("  ");
+      Serial.print("Encoder 1: "); Serial.print((long)encoderCalibrated_1);  Serial.print("  ");
       Serial.print("Encoder 2: "); Serial.print(encoderPosition_2);  Serial.print("  ");
       Serial.print("Encoder 3: "); Serial.println(encoderPosition_3); 
       // (long)encoderCalibrated_1 
@@ -218,6 +226,140 @@ void loop()
   RunMotor_3();
 }
 
+void runToAngle(int motorID, float angle) 
+{
+  switch (motorID) {
+    case 1: Degree_1(angle, deg1_old);  break;
+    case 2: Degree_2(angle, deg2_old);  break;
+    case 3: Degree_3(angle, deg3_old);  break;
+  }
+}
+// indexOf: tính tổng các kí tự trc khi thấy kí tự |
+// substring: cắt từ vị trí chỉ định tới vị trí yêu cầu str.substr(start, length);
+bool parseTrajectoryCommand(String input) 
+{
+  input.trim();  // Xóa khoảng trắng hoặc ký tự xuống dòng
+
+  int sep1 = input.indexOf('|');
+  int sep2 = input.lastIndexOf('|');
+
+  if (sep1 == -1 || sep2 == -1 || sep1 == sep2) {
+    Serial.println("Lỗi định dạng chuỗi.");
+    return false;
+  }
+
+  String part_P0 = input.substring(0, sep1);
+  String part_Pf = input.substring(sep1 + 1, sep2);
+  String part_tf = input.substring(sep2 + 1);
+
+  int c1 = part_P0.indexOf(',');
+  int c2 = part_P0.lastIndexOf(',');
+  if (c1 == -1 || c2 == -1 || c1 == c2) return false;
+  P0[0] = part_P0.substring(0, c1).toFloat();
+  P0[1] = part_P0.substring(c1 + 1, c2).toFloat();
+  P0[2] = part_P0.substring(c2 + 1).toFloat();
+
+  c1 = part_Pf.indexOf(',');
+  c2 = part_Pf.lastIndexOf(',');
+  if (c1 == -1 || c2 == -1 || c1 == c2) return false;
+  Pf[0] = part_Pf.substring(0, c1).toFloat();
+  Pf[1] = part_Pf.substring(c1 + 1, c2).toFloat();
+  Pf[2] = part_Pf.substring(c2 + 1).toFloat();
+
+  // -------- Tính tf động dựa vào góc quay và xung --------
+  float theta_start[3], theta_end[3];
+  if (!inverse_kinematic(P0[0], P0[1], P0[2], theta_start)) {
+    Serial.println("Lỗi IK tại P0");
+    return false;
+  }
+  if (!inverse_kinematic(Pf[0], Pf[1], Pf[2], theta_end)) {
+    Serial.println("Lỗi IK tại Pf");
+    return false;
+  }
+
+  float d1 = abs(theta_end[0] - theta_start[0]);
+  float d2 = abs(theta_end[1] - theta_start[1]);
+  float d3 = abs(theta_end[2] - theta_start[2]);
+
+  float pulses_1 = d1 * pulperrev * 8 / 360.0;
+  float pulses_2 = d2 * pulperrev * 8 / 360.0;
+  float pulses_3 = d3 * pulperrev * 8 / 360.0;
+
+  float t1 = pulses_1 * delay_run_spd / 1000000.0;
+  float t2 = pulses_2 * delay_run_spd / 1000000.0;
+  float t3 = pulses_3 * delay_run_spd / 1000000.0;
+
+  tf = max(t1, max(t2, t3));  // Gán lại tf
+
+  // In kiểm tra
+  Serial.print("Tự tính tf = "); Serial.println(tf, 4);
+  Serial.print("P0 = "); Serial.print(P0[0]); Serial.print(", "); Serial.print(P0[1]); Serial.print(", "); Serial.println(P0[2]);
+  Serial.print("Pf = "); Serial.print(Pf[0]); Serial.print(", "); Serial.print(Pf[1]); Serial.print(", "); Serial.println(Pf[2]);
+
+  return true; // CHUYỂN RETURN XUỐNG CUỐI
+}
+
+// *P0: P0 là con trỏ, lấy giá trị tại địa chỉ mà P0 trỏ đến
+// &x: lấy địa chỉ ô nhớ của x
+void ComputeTrajectory(float t, float *P0, float *Pf, float tf, float &x, float &y, float &z) 
+{
+  auto compute_axis = [&](float p0, float pf, float t) -> float {
+    float delta = pf - p0;
+    float a0 = p0;
+    float a1 = 0;
+    float a2 = 0;
+    float a3 = 10 * delta / (tf*tf*tf);
+    float a4 = -15 * delta / (tf*tf*tf*tf);
+    float a5 = 6 * delta / (tf*tf*tf*tf*tf);
+    return a0 + a1 * t + a2 * t*t + a3 * t*t*t + a4 * t*t*t*t + a5 * t*t*t*t*t;
+  };
+
+  x = compute_axis(P0[0], Pf[0], t);
+  y = compute_axis(P0[1], Pf[1], t);
+  z = compute_axis(P0[2], Pf[2], t);
+}
+
+bool inverse_kinematic(float X_ee, float Y_ee, float Z_ee, float *J) // J là mảng
+{
+  float R_Base = 60.0;
+  float R_platform = 42.62;
+  float r = R_Base - R_platform;
+
+  float re = 150.0;
+  float rf = 350.0;
+  float threshold = 0.001;
+
+  float alpha_deg[3] = {0, 120, 240};
+
+  for (int i = 0; i < 3; i++) {
+    float alpha = radians(alpha_deg[i]);
+    float cos_alpha = cos(alpha);
+    float sin_alpha = sin(alpha);
+
+    float A = -2.0 * re * (-r + X_ee * cos_alpha + Y_ee * sin_alpha);
+    float B = -2.0 * re * Z_ee;
+    float C = (X_ee * X_ee + Y_ee * Y_ee + Z_ee * Z_ee + r * r + re * re - rf * rf
+              - 2 * r * (X_ee * cos_alpha + Y_ee * sin_alpha));
+
+    float denominator = sqrt(A * A + B * B); // fabs: trả về giá trị tuyệt đối
+    if (denominator == 0 || fabs(C / denominator) > 1.0) {
+      Serial.println("Lỗi: Không thể tính góc do acos out of range");
+      return false;
+    }
+
+    float theta1 = atan2(B, A) + acos(-C / denominator);
+    float theta2 = atan2(B, A) - acos(-C / denominator);
+
+    float theta;
+    if (theta1 > theta2) {theta = theta2;}
+    else {theta = theta1;}
+    if (fabs(theta) < threshold) theta = 0;
+
+    J[i] = -degrees(theta);  // Lưu vào mảng đầu ra
+  }
+
+  return true;
+}
 ///////////////////////////////////////////RECEIVE ENCODER VALUE/////////////////////////////////////
 // Hàm đếm xung encoder khi có sự thay đổi trạng thái
 // TTL: Transistor-Transistor Logic,  hoạt động trong khoảng 0-5V
@@ -245,23 +387,44 @@ void handleB_1() {
 }
 void handleA_2() {
   if (READ_A_2) {
-    if (READ_B_2) encoderPosition_2 -= 2;
-    else encoderPosition_2 += 1;
+    if (READ_B_2) encoderPosition_2 --;
+    else encoderPosition_2 ++;
   } else {
-    if (READ_B_2) encoderPosition_2 += 1;
-    else encoderPosition_2 -= 2;
+    if (READ_B_2) encoderPosition_2 ++;
+    else encoderPosition_2 --;
   }
 }
 void handleB_2() {
   if (READ_B_2) {
-    if (READ_A_2) encoderPosition_2 += 1;
-    else encoderPosition_2 -= 2;
+    if (READ_A_2) encoderPosition_2 ++;
+    else encoderPosition_2 --;
   } else {
-    if (READ_A_2) encoderPosition_2 -= 2;
-    else encoderPosition_2 += 1;
+    if (READ_A_2) encoderPosition_2 --;
+    else encoderPosition_2 ++;
   }
 }
-
+// void handleA_2() {
+//   int delta = 0;
+//   if (READ_A_2) {
+//     if (READ_B_2) delta = -1;
+//     else delta = +1;
+//   } else {
+//     if (READ_B_2) delta = +1;
+//     else delta = -1;
+//   }
+//   encoderPosition_2 += delta;
+// }
+// void handleB_2() {
+//   int delta = 0;
+//   if (READ_B_2) {
+//     if (READ_A_2) delta = +1;
+//     else delta = -1;
+//   } else {
+//     if (READ_A_2) delta = -1;
+//     else delta = +1;
+//   }
+//   encoderPosition_2 += delta;
+// }
 void handleA_3() {
   int delta = 0;
   if (READ_A_3) {
@@ -286,74 +449,149 @@ void handleB_3() {
 }
 
 ////////////////////////////////////////CALCULATE ANGLE////////////////////////////////////////
-void Degree_1(float deg, float deg_old) 
+// void Degree_1(float deg, float deg_old) 
+// {
+//   if (deg_old >= deg) 
+//   {
+//     digitalWrite(DIR_PIN_1, 0);
+//     degree1 = abs(deg - deg_old);
+//     lastDir_1_encoder = -1;
+//   } 
+//   else
+//   {
+//     digitalWrite(DIR_PIN_1, 1);
+//     degree1 = abs(deg - deg_old);
+//     lastDir_1_encoder = 1;
+//   }
+//   nPulse_1 = degree1 * 8 * pulperrev / 360;
+//   if (nPulse_1 > 0) 
+//   {
+//     motorRunning_1 = true;
+//     // startTime_1 = millis();
+//   }
+// }
+void Degree_1(float deg, float deg_old_input) 
 {
-  if (deg_old >= deg) 
+  float deg_diff = abs(deg - deg_old_input);
+  if (deg_diff < 0.1) return;  // Bỏ qua nếu quá nhỏ
+
+  if (deg_old_input >= deg) 
   {
     digitalWrite(DIR_PIN_1, 0);
-    degree1 = abs(deg - deg_old);
     lastDir_1_encoder = -1;
   } 
   else
   {
     digitalWrite(DIR_PIN_1, 1);
-    degree1 = abs(deg - deg_old);
     lastDir_1_encoder = 1;
   }
+
+  degree1 = deg_diff;
   nPulse_1 = degree1 * 8 * pulperrev / 360;
+
   if (nPulse_1 > 0) 
   {
     motorRunning_1 = true;
-    startTime_1 = millis();
+    // startTime_1 = millis();
+    deg1_old = deg;  // ✅ Cập nhật ở đây, chứ không phải bên ngoài
   }
+
   Serial.println("OK");
 }
-
-void Degree_2(float deg, float deg_old) 
+void Degree_2(float deg, float deg_old_input) 
 {
-  if (deg_old >= deg) 
+  float deg_diff = abs(deg - deg_old_input);
+  if (deg_diff < 0.1) return;  // Bỏ qua nếu quá nhỏ
+
+  if (deg_old_input >= deg) 
   {
     digitalWrite(DIR_PIN_2, 0);
-    degree2 = abs(deg - deg_old);
     lastDir_2_encoder = -1;
   } 
   else
   {
     digitalWrite(DIR_PIN_2, 1);
-    degree2 = abs(deg - deg_old);
     lastDir_2_encoder = 1;
   }
+
+  degree2 = deg_diff;
   nPulse_2 = degree2 * 8 * pulperrev / 360;
+
   if (nPulse_2 > 0) 
   {
     motorRunning_2 = true;
-    startTime_2 = millis();
+    deg2_old = deg;  // ✅ Cập nhật tại đây
   }
-  Serial.println("OK");
 }
-
-void Degree_3(float deg, float deg_old) 
+void Degree_3(float deg, float deg_old_input) 
 {
-  if (deg_old >= deg) 
+  float deg_diff = abs(deg - deg_old_input);
+  if (deg_diff < 0.1) return;  // Bỏ qua nếu quá nhỏ
+
+  if (deg_old_input >= deg) 
   {
     digitalWrite(DIR_PIN_3, 0);
-    degree3 = abs(deg - deg_old);
     lastDir_3_encoder = -1;
   } 
   else
   {
     digitalWrite(DIR_PIN_3, 1);
-    degree3 = abs(deg - deg_old);
     lastDir_3_encoder = 1;
   }
+
+  degree3 = deg_diff;
   nPulse_3 = degree3 * 8 * pulperrev / 360;
+
   if (nPulse_3 > 0) 
   {
     motorRunning_3 = true;
-    startTime_3 = millis();
+    deg3_old = deg;  // ✅ Cập nhật tại đây
   }
-  Serial.println("OK");
 }
+
+// void Degree_2(float deg, float deg_old) 
+// {
+//   if (deg_old >= deg) 
+//   {
+//     digitalWrite(DIR_PIN_2, 0);
+//     degree2 = abs(deg - deg_old);
+//     lastDir_2_encoder = -1;
+//   } 
+//   else
+//   {
+//     digitalWrite(DIR_PIN_2, 1);
+//     degree2 = abs(deg - deg_old);
+//     lastDir_2_encoder = 1;
+//   }
+//   nPulse_2 = degree2 * 8 * pulperrev / 360;
+//   if (nPulse_2 > 0) 
+//   {
+//     motorRunning_2 = true;
+//     // startTime_2 = millis();
+//   }
+// }
+
+// void Degree_3(float deg, float deg_old) 
+// {
+//   if (deg_old >= deg) 
+//   {
+//     digitalWrite(DIR_PIN_3, 0);
+//     degree3 = abs(deg - deg_old);
+//     lastDir_3_encoder = -1;
+//   } 
+//   else
+//   {
+//     digitalWrite(DIR_PIN_3, 1);
+//     degree3 = abs(deg - deg_old);
+//     lastDir_3_encoder = 1;
+//   }
+//   nPulse_3 = degree3 * 8 * pulperrev / 360;
+//   if (nPulse_3 > 0) 
+//   {
+//     motorRunning_3 = true;
+//     // startTime_3 = millis();
+//   }
+// }
 
 ///////////////////////////////////////////RUN MOTOR//////////////////////////////////////////////
 unsigned long lastPulseTime_1 = 0;
@@ -429,31 +667,31 @@ void StopMotor_1()
 {
   motorRunning_1 = false;
   digitalWrite(PUL_PIN_1, LOW);
-  endTime_1 = millis(); // Ghi lại thời gian kết thúc
-  unsigned long runDuration = endTime_1 - startTime_1;
-  Serial.print("Run time 1: ");
-  Serial.print(runDuration);
-  Serial.println(" ms");
+  // endTime_1 = millis(); // Ghi lại thời gian kết thúc
+  // unsigned long runDuration = endTime_1 - startTime_1;
+  // Serial.print("Run time 1: ");
+  // Serial.print(runDuration);
+  // Serial.println(" ms");
 }  
 void StopMotor_2() 
 {
   motorRunning_2 = false;
   digitalWrite(PUL_PIN_2, LOW);
-  endTime_2 = millis(); // Ghi lại thời gian kết thúc
-  unsigned long runDuration = endTime_2 - startTime_2;
-  Serial.print("Run time 2: ");
-  Serial.print(runDuration);
-  Serial.println(" ms");
+  // endTime_2 = millis(); // Ghi lại thời gian kết thúc
+  // unsigned long runDuration = endTime_2 - startTime_2;
+  // Serial.print("Run time 2: ");
+  // Serial.print(runDuration);
+  // Serial.println(" ms");
 }  
 void StopMotor_3() 
 {
   motorRunning_3 = false;
   digitalWrite(PUL_PIN_3, LOW);
-  endTime_3 = millis(); // Ghi lại thời gian kết thúc
-  unsigned long runDuration = endTime_3 - startTime_3;
-  Serial.print("Run time 3: ");
-  Serial.print(runDuration);
-  Serial.println(" ms");
+  // endTime_3 = millis(); // Ghi lại thời gian kết thúc
+  // unsigned long runDuration = endTime_3 - startTime_3;
+  // Serial.print("Run time 3: ");
+  // Serial.print(runDuration);
+  // Serial.println(" ms");
 }  
 
 ////////////////////////////////////////////SET HOME//////////////////////////////////////////////////
@@ -471,7 +709,7 @@ void SetHome()
   // Serial.print("Limit 2: "); Serial.println(digitalRead(limit_2));
   // Serial.print("Limit 3: "); Serial.println(digitalRead(limit_3));
   while (!xHomed || !yHomed || !zHomed)
-  // while (!xHomed)
+  // while (!yHomed)
   {
     // Set home cho motor 1
     if (!xHomed)
@@ -519,7 +757,7 @@ void SetHome()
         delayMicroseconds(delay_home_spd);
       }
     }
-    // Set home cho motor 3
+    // // Set home cho motor 3
     if (!zHomed)
     {
       if (digitalRead(limit_3) == LOW)
@@ -559,7 +797,7 @@ void SetHome()
     RunMotor_2();
     RunMotor_3();
   }
-  delay(400);
+  delay(700);
   // reset gốc tọa độ mới
   SetPosition_1();
   SetPosition_2();
@@ -609,8 +847,54 @@ void SetPosition_3()
 
   encoderPosition_3 = 0;
   nPulse_3 = 0;
+  delta_3 = 0;
 
   attachInterrupt(digitalPinToInterrupt(pinA_3), handleA_3, CHANGE);
   attachInterrupt(digitalPinToInterrupt(pinB_3), handleB_3, CHANGE);
 }
-
+void handleAngleCommand(String input)
+{
+  String inString = "";
+  for (int x = 0; x < input.length(); x++) 
+    {
+      if ((input[x] == '-') || (input[x] == '.')) 
+      {
+        inString += (char)input[x];
+      }
+      if (isDigit(input[x])) 
+      {
+        inString += (char)input[x];
+      }
+    
+      if (input[x] == 'A') 
+      {
+        deg1 = inString.toFloat();
+        if (abs(deg1 - deg1_old) > 0.1) 
+        {
+          Degree_1(deg1, deg1_old);
+          deg1_old = deg1;
+        }
+        inString = " ";
+      } 
+      else if (input[x] == 'B') 
+      {
+        deg2 = inString.toFloat();
+        if (abs(deg2 - deg2_old) > 0.1) 
+        {
+          Degree_2(deg2, deg2_old);
+          deg2_old = deg2;
+        }
+        inString = " ";
+      }
+      else if (input[x] == 'C') 
+      {
+        deg3 = inString.toFloat();
+        if (abs(deg3 - deg3_old) > 0.1) 
+        {
+          Degree_3(deg3, deg3_old);
+          deg3_old = deg3;
+        }
+        inString = " ";
+      }
+    }
+}
