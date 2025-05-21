@@ -35,12 +35,12 @@ def forward_kinematic(theta1_deg, theta2_deg, theta3_deg):
         P[i][1] = y
         P[i][2] = z
 
-    # Vector v12 = P2 - P1, v13 = P3 - P1   ///thiếu vòng lặp
+    # Vector v12 = P2 - P1, v13 = P3 - P1
     v12 = [P[1][i] - P[0][i] for i in range(3)] #v12 = [x,y,z]
     v13 = [P[2][i] - P[0][i] for i in range(3)]
 
     # ex = v12 / |v12|
-    norm_v12 = math.sqrt(sum([v**2 for v in v12])) #v**2 là square từng phần tử trong vector
+    norm_v12 = math.sqrt(sum([v**2 for v in v12])) #v**2 là bình phương từng phần tử trong vector
     ex = [v / norm_v12 for v in v12]       #norm: tính độ dài vector
 
     # a = dot(ex, v13)
@@ -80,12 +80,12 @@ def forward_kinematic(theta1_deg, theta2_deg, theta3_deg):
     return True, Px, Py, Pz
 
 def inverse_kinematic(X_ee, Y_ee, Z_ee):
-    R_Base = 60
-    R_platform = 42.62  # Khoảng cách từ tâm end-effector tới khớp cầu
-    r = R_Base - R_platform  # Khoảng cách từ tâm top tới động cơ
-
-    re = 150  # Chiều dài cánh tay trên (mm)
-    rf = 350  # Chiều dài cánh tay dưới (mm)
+    # R_Base = 60
+    # R_platform = 42.62  # Khoảng cách từ tâm end-effector tới khớp cầu
+    r = R_base - R_platform  # Khoảng cách từ tâm top tới động cơ
+    #
+    # re = 150  # Chiều dài cánh tay trên (mm)
+    # rf = 350  # Chiều dài cánh tay dưới (mm)
 
     # Z_ee = Z_ee+35.5
     # Góc xoay động cơ

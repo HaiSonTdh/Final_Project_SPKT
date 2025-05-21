@@ -60,8 +60,8 @@ unsigned long startTime_1,startTime_2,startTime_3;
 unsigned long endTime_1,endTime_2,endTime_3;
 unsigned long lastPrintTime = 0;
 
-unsigned long delay_run_spd = 7000;
-unsigned long delay_home_spd = 7000;
+unsigned long delay_run_spd = 3000;
+unsigned long delay_home_spd = 4000;
 unsigned long pulperrev = 200;
 
 volatile int lastDir_1_encoder = 1;  // 1 = thuận, -1 = nghịch
@@ -124,6 +124,7 @@ void loop()
     //   t_start = millis();
     // }
     if (input.indexOf('A') != -1 || input.indexOf('B') != -1 || input.indexOf('C') != -1) 
+    // tìm kí tự A,B or C trong chuỗi input
     {
       handleAngleCommand(input);  // Xử lý điều khiển từng góc
     }
@@ -781,7 +782,7 @@ void SetHome()
       }
     }
   }
-  Degree_1(8.5, 0);
+  Degree_1(8.5, 0); //8.5
   Degree_2(12, 0);
   Degree_3(7, 0);
 
@@ -797,7 +798,7 @@ void SetHome()
     RunMotor_2();
     RunMotor_3();
   }
-  delay(700);
+  delay(500);
   // reset gốc tọa độ mới
   SetPosition_1();
   SetPosition_2();

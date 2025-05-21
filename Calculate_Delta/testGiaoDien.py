@@ -1,137 +1,395 @@
 import tkinter as tk
 from tkinter import messagebox
-import threading
+import serial
 import time
-# import serial
+import threading
 import Kinematic
 from PIL import Image, ImageTk
 
-# ===== Giả lập Serial để test (xoá khi dùng thực tế) =====
-class DummySerial:
-    def write(self, data): print("Serial.write:", data)
-    def readline(self): return b'Encoder feedback\n'
-    def in_waiting(self): return True
-ser = DummySerial()
+# Setup Serial
+# ser = serial.Serial('COM5', 9600)
+# time.sleep(1)
 
-# ===== Hàm xử lý =====
-def send_theta(index, entry, label):
-    try:
-        val = float(entry.get())
-        ser.write(f"{val:.2f}{label}\r".encode())
-        print(f"Gửi: {val:.2f}{label}")
-    except ValueError:
-        messagebox.showerror("Lỗi", f"Theta {index} không hợp lệ!")
-
+# Hàm điều khiển Arduino
 def send_angles():
     try:
-        t1 = float(entry_theta1.get())
-        t2 = float(entry_theta2.get())
-        t3 = float(entry_theta3.get())
-        if not (0 <= t1 <= 60 and 0 <= t2 <= 60 and 0 <= t3 <= 60):
-            messagebox.showerror("Lỗi", "Các góc phải trong khoảng 0 - 60 độ")
+        theta1 = float(entry_theta1.get())
+        theta2 = float(entry_theta2.get())
+        theta3 = float(entry_theta3.get())
+
+        if not (0 <= theta1 <= 60):
+            messagebox.showerror("Error", "Theta 1 phải trong khoảng 0 đến 90")
             return
-        ser.write(f"{t1}A{t2}B{t3}C\r".encode())
-        result = Kinematic.forward_kinematic(t1, t2, t3)
-        if not result[0]:
-            messagebox.showerror("Lỗi", "Không thể tính vị trí.")
+        if not (0 <= theta2 <= 60):
+            messagebox.showerror("Error", "Theta 2 phải trong khoảng 0 đến 45")
             return
-        _, x, y, z = result
-        for e, v in zip([entry_x, entry_y, entry_z], [x, y, z]):
-            e.config(state='normal')
-            e.delete(0, tk.END)
-            e.insert(0, f"{v:.2f}")
-            e.config(state='readonly')
+        if not (0 <= theta3 <= 60):
+            messagebox.showerror("Error", "Theta 3 phải trong khoảng 0 đến 60")
+            return
+
+        data = f"{theta1}A{theta2}B{theta3}C\r"
+        print(f"Gửi: {data.strip()}")
+        ser.write(data.encode())
+
     except ValueError:
-        messagebox.showerror("Lỗi", "Nhập sai định dạng số.")
+        messagebox.showerror("Error", "Vui lòng nhập đúng định dạng số!")
+    try:
+        result = Kinematic.forward_kinematic(theta1, theta2, theta3)
+        if result[0] is False:
+            messagebox.showerror("Error", "Không thể tính vị trí. Kiểm tra lại góc đầu vào.")
+            return
 
-def set_home(): ser.write(b'h\r')
-def stop(): ser.write(b's\r')
-def hut_namcham(): ser.write(b'u\r')
-def tha_namcham(): ser.write(b'd\r')
+        _, x, y, z = result # bỏ qua giá trị đầu vì nó là true, false
 
+        entry_x.config(state='normal')             #cho phép thay đổi dữ liệu
+        entry_y.config(state='normal')
+        entry_z.config(state='normal')
+        entry_x.delete(0, tk.END)             #xóa dữ liệu cũ
+        entry_y.delete(0, tk.END)
+        entry_z.delete(0, tk.END)
+        entry_x.insert(0, f"{x:.2f}")  #ghi dữ liệu mới
+        entry_y.insert(0, f"{y:.2f}")
+        entry_z.insert(0, f"{z:.2f}")
+        entry_x.config(state='readonly')      #khóa lại để người dùng k sửa đc
+        entry_y.config(state='readonly')
+        entry_z.config(state='readonly')
+    except Exception as e:
+        print(f"Lỗi khi tính forward kinematic: {e}")
+        messagebox.showerror("Lỗi", "Không thể tính vị trí. Kiểm tra lại hàm forward_kinematic.")
+
+def calculate_inv_kinematic():
+    try:
+        x_val = float(entry_input_x.get())
+        y_val = float(entry_input_y.get())
+        z_val = float(entry_input_z.get())
+
+        angles = Kinematic.inverse_kinematic(x_val, y_val, z_val)
+
+        entry_out1.config(state=tk.NORMAL)
+        entry_out1.delete(0, tk.END)
+        entry_out1.insert(0, f"{angles[0]:.2f}")
+        entry_out1.config(state='readonly')
+
+        entry_out2.config(state=tk.NORMAL)
+        entry_out2.delete(0, tk.END)
+        entry_out2.insert(0, f"{angles[1]:.2f}")
+        entry_out2.config(state='readonly')
+
+        entry_out3.config(state=tk.NORMAL)
+        entry_out3.delete(0, tk.END)
+        entry_out3.insert(0, f"{angles[2]:.2f}")
+        entry_out3.config(state='readonly')
+
+    except ValueError:
+        messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho X, Y, Z.")
+    except ValueError as e:
+        messagebox.showerror("Lỗi tính toán", str(e))
+    except Exception as e:
+        messagebox.showerror("Lỗi không xác định", f"Đã xảy ra lỗi: {e}")
+# def run_trajectory(P0, Pf, tf=3.0, dt=0.1):
+#     t = 0
+#     while t <= tf:
+#         x, y, z = Kinematic.trajectory_planning_2_point(t, P0, Pf, tf)
+#         try:
+#             theta1, theta2, theta3 = Kinematic.inverse_kinematic(x, y, z)
+#             data = f"{theta1:.2f}A{theta2:.2f}B{theta3:.2f}C\r"
+#             print(f"[{t:.2f}s] Gửi: {data.strip()}")
+#             ser.write(data.encode())
+#             while True:
+#                 if ser.in_waiting > 0:
+#                     resp = ser.readline().decode().strip()
+#                     if resp == "OK":
+#                         break
+#             time.sleep(dt)
+#             t += dt
+#         except Exception as e:
+#             print(f"Lỗi tại t={t:.2f}s: {e}")
+#             break
+def send_trajectory():
+    try:
+        x0 = float(entry_x0.get())
+        y0 = float(entry_y0.get())
+        z0 = float(entry_z0.get())
+        xf = float(entry_xf.get())
+        yf = float(entry_yf.get())
+        zf = float(entry_zf.get())
+        tf = float(entry_tf.get())  # thêm ô nhập tf
+
+        # Gửi dạng: x0,y0,z0|xf,yf,zf|tf
+        data = f"{x0},{y0},{z0}|{xf},{yf},{zf}|{tf}\r"
+        ser.write(data.encode())
+        print(f"Gửi: {data.strip()}")
+
+    except Exception as e:
+        messagebox.showerror("Lỗi", str(e))
+
+# def start_trajectory():
+#     try:
+#         # Lấy P0
+#         x0 = float(entry_x0.get())
+#         y0 = float(entry_y0.get())
+#         z0 = float(entry_z0.get())
+#
+#         # Lấy Pf
+#         xf = float(entry_xf.get())
+#         yf = float(entry_yf.get())
+#         zf = float(entry_zf.get())
+#
+#         tf = 5.0  # thời gian quỹ đạo, bạn có thể thêm ô nhập nếu muốn chỉnh thời gian
+#
+#         threading.Thread(target=run_trajectory, args=((x0, y0, z0), (xf, yf, zf), tf)).start()
+#
+#     except Exception as e:
+#         messagebox.showerror("Lỗi", f"Không thể khởi động quỹ đạo: {e}")
+def set_home():
+    ser.write(bytes('h' + '\r', 'utf-8'))
+def stop():
+    ser.write(bytes('s' + '\r', 'utf-8'))
+def hut_namcham():
+    ser.write(bytes('u' + '\r', 'utf-8'))
+def tha_namcham():
+    ser.write(bytes('d' + '\r', 'utf-8'))
 def read_serial():
     while True:
-        if ser.in_waiting:
+        if ser.in_waiting > 0:
             line = ser.readline().decode('utf-8').rstrip()
+            print(f"Nhận: {line}")
             text_box.insert(tk.END, line + "\n")
-            text_box.see(tk.END)
+            text_box.see(tk.END)  # Auto scroll xuống dòng mới nhất
         time.sleep(0.1)
 
-# ===== GIAO DIỆN =====
-window = tk.Tk()
-window.title("Gửi góc điều khiển tới Arduino")
-window.geometry("700x700")
-window.configure(bg="#f0f0f5")
+def send_theta1():
+    try:
+        val = float(entry_theta1.get())
+        ser.write(f"{val:.2f}A\r".encode())
+        print(f"Gửi: {val:.2f}A")
+    except ValueError:
+        messagebox.showerror("Error", "Theta 1 không hợp lệ!")
 
-# ===== Banner ảnh =====
+def send_theta2():
+    try:
+        val = float(entry_theta2.get())
+        ser.write(f"{val:.2f}B\r".encode())
+        print(f"Gửi: {val:.2f}B")
+    except ValueError:
+        messagebox.showerror("Error", "Theta 2 không hợp lệ!")
+
+def send_theta3():
+    try:
+        val = float(entry_theta3.get())
+        ser.write(f"{val:.2f}C\r".encode())
+        print(f"Gửi: {val:.2f}C")
+    except ValueError:
+        messagebox.showerror("Error", "Theta 3 không hợp lệ!")
+
+
+# Giao diện chính
+window = tk.Tk()
+# window.title("Gửi góc điều khiển tới Arduino")
+window.geometry("850x750")
+window.configure(bg="#f0f0f5")  # Màu nền nhẹ nhàng
+
+font_title = ("Arial", 20, "bold")
+font_label = ("Arial", 12)
+font_entry = ("Arial", 12)
+font_button = ("Arial", 12, "bold")
+
+# Hiển thị ảnh khoa đào tạo
 try:
-    image = Image.open("Banner0.png")
-    image = image.resize((680, 100))
+    image = Image.open("Banner0.png")  # Thay bằng tên file ảnh của bạn
+    image = image.resize((750, 100))  # Resize ảnh nếu cần
     photo = ImageTk.PhotoImage(image)
     label_image = tk.Label(window, image=photo, bg="#f0f0f5")
-    label_image.image = photo
-    label_image.pack(pady=5)
-except:
-    pass
+    label_image.image = photo  # Giữ tham chiếu ảnh
+    label_image.pack(pady=(10, 5))
+except Exception as e:
+    print(f"Lỗi khi tải ảnh: {e}")
+title = tk.Label(window, text="CONTROL INTERFACE", font=font_title, bg="#f0f0f5", fg="#333")
+title.pack(pady=10)
 
-# ===== TIÊU ĐỀ =====
-tk.Label(window, text="Forward kinematic", font=("Arial", 16, "bold"), bg="#f0f0f5").pack()
+# Frame chính chứa các phần bên trái và bên phải
+frame_main = tk.Frame(window, bg="#f0f0f5")
+frame_main.pack(pady=10, padx=20, fill="x") # Thêm padx và fill để frame chính rộng hơn
 
-# ===== FRAME CHÍNH =====
-main_frame = tk.Frame(window, bg="#f0f0f5")
-main_frame.pack(pady=10)
+# Inputs bên trái
+frame_inputs = tk.Frame(frame_main, bg="#f0f0f5")
+frame_inputs.pack(side=tk.LEFT, fill="y") # fill="y" để frame inputs cao bằng frame buttons
 
-# ===== VÙNG NHẬP GÓC & GỬI =====
-theta_frame = tk.Frame(main_frame, bg="#f0f0f5")
-theta_frame.grid(row=0, column=0, padx=10)
+label_for_kinematic = tk.Label(frame_inputs, text="FORWARD KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
+label_for_kinematic.grid(row=0, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
+# sticky: xác định tiện ích bám vào phía nào của ô
+# columnspan:chỉ định số cột tiện ích chiếm giữ
 
-entry_theta1 = tk.Entry(theta_frame, width=10, bg="lightgray", justify="center")
-entry_theta1.grid(row=0, column=0, padx=5, pady=3)
-btn1 = tk.Button(theta_frame, text="Send theta 1", bg="yellow", width=15, command=lambda: send_theta(1, entry_theta1, "A"))
-btn1.grid(row=0, column=1, padx=5)
+# Theta 1
+label_theta1 = tk.Label(frame_inputs, text="Theta 1 (°):", font=font_label, bg="#f0f0f5")
+label_theta1.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+entry_theta1 = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_theta1.grid(row=1, column=1, pady=5)
+button_t1 = tk.Button(frame_inputs, text="SEND", command=send_theta1, font=font_button, bg="#9C27B0", fg="white", width=6)
+button_t1.grid(row=1, column=2, padx=5)
 
-entry_theta2 = tk.Entry(theta_frame, width=10, bg="lightgray", justify="center")
-entry_theta2.grid(row=1, column=0, padx=5, pady=3)
-btn2 = tk.Button(theta_frame, text="Send theta 2", bg="yellow", width=15, command=lambda: send_theta(2, entry_theta2, "B"))
-btn2.grid(row=1, column=1, padx=5)
+# Theta 2
+label_theta2 = tk.Label(frame_inputs, text="Theta 2 (°):", font=font_label, bg="#f0f0f5")
+label_theta2.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+entry_theta2 = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_theta2.grid(row=2, column=1, pady=5)
+button_t2 = tk.Button(frame_inputs, text="SEND", command=send_theta2, font=font_button, bg="#FF9800", fg="white", width=6)
+button_t2.grid(row=2, column=2, padx=5)
 
-entry_theta3 = tk.Entry(theta_frame, width=10, bg="lightgray", justify="center")
-entry_theta3.grid(row=2, column=0, padx=5, pady=3)
-btn3 = tk.Button(theta_frame, text="Send theta 3", bg="yellow", width=15, command=lambda: send_theta(3, entry_theta3, "C"))
-btn3.grid(row=2, column=1, padx=5)
+# Theta 3
+label_theta3 = tk.Label(frame_inputs, text="Theta 3 (°):", font=font_label, bg="#f0f0f5")
+label_theta3.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+entry_theta3 = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_theta3.grid(row=3, column=1, pady=5)
+button_t3 = tk.Button(frame_inputs, text="SEND", command=send_theta3, font=font_button, bg="#3F51B5", fg="white", width=6)
+button_t3.grid(row=3, column=2, padx=5)
 
-# ===== VỊ TRÍ KẾT QUẢ =====
-position_frame = tk.Frame(main_frame, bg="#f0f0f5")
-position_frame.grid(row=1, column=0, pady=20)
-tk.Label(window, text="Inverse kinematic", font=("Arial", 16, "bold"), bg="#f0f0f5").pack()
+# Nhãn "Vị trí (mm):"
+label_result = tk.Label(frame_inputs, text="POSITION (mm):", font=("Helvetica", 17, "bold"), bg="#f0f0f5")
+label_result.grid(row=4, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
 
-for i, (label, var) in enumerate([("X", "entry_x"), ("Y", "entry_y"), ("Z", "entry_z")]):
-    tk.Label(position_frame, text=f"{label}:", font=("Arial", 12), bg="#f0f0f5").grid(row=i, column=0, padx=5, sticky="e")
-    e = tk.Entry(position_frame, width=20, bg="lightgray", justify="center", state="readonly")
-    e.grid(row=i, column=1, pady=3)
-    globals()[var] = e
+# X, Y, Z nằm ngang hàng và canh đều
+label_x = tk.Label(frame_inputs, text="X:", font=font_label, bg="#f0f0f5")
+label_x.grid(row=5, column=0, padx=(10, 2), pady=5, sticky="e")
+entry_x = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_x.grid(row=5, column=1, padx=(0, 20), pady=5) # Tăng padx bên phải
 
-# ===== VÙNG NÚT BÊN PHẢI =====
-right_frame = tk.Frame(main_frame, bg="#f0f0f5")
-right_frame.grid(row=0, column=1, rowspan=2, padx=30, sticky="n")
+label_y = tk.Label(frame_inputs, text="Y:", font=font_label, bg="#f0f0f5")
+label_y.grid(row=5, column=2, padx=(20, 2), pady=5, sticky="e") # Tăng padx bên trái
+entry_y = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_y.grid(row=5, column=3, padx=(0, 20), pady=5) # Tăng padx bên phải
 
-control_buttons = [
-    ("SET HOME", set_home),
-    ("UP", hut_namcham),
-    ("SEND DATA", send_angles),
-    ("DOWN", tha_namcham),
-    ("STOP", stop),
-]
+label_z = tk.Label(frame_inputs, text="Z:", font=font_label, bg="#f0f0f5")
+label_z.grid(row=5, column=4, padx=(20, 2), pady=5, sticky="e") # Tăng padx bên trái
+entry_z = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_z.grid(row=5, column=5, padx=(0, 10), pady=5)
 
-for i, (label, cmd) in enumerate(control_buttons):
-    btn = tk.Button(right_frame, text=label, command=cmd, bg="yellow", font=("Arial", 10, "bold"), width=15)
-    btn.grid(row=i, column=0, pady=5)
+label_inv_kinematic = tk.Label(frame_inputs, text="INVERSE KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
+label_inv_kinematic.grid(row=6, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
 
-# ===== ENCODER =====
-tk.Label(window, text="Encoder", font=("Arial", 14, "bold"), bg="#f0f0f5").pack(pady=(20, 5))
-text_box = tk.Text(window, width=70, height=8, font=("Courier New", 11))
-text_box.pack()
+# Nhập X, Y, Z (Inverse Kinematic)
+label_input_x = tk.Label(frame_inputs, text="X:", font=font_label, bg="#f0f0f5")
+label_input_x.grid(row=7, column=0, padx=10, pady=5, sticky="w")
+entry_input_x = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_x.grid(row=7, column=1, padx=5, pady=5)
 
-# ===== THREAD ĐỌC SERIAL =====
-threading.Thread(target=read_serial, daemon=True).start()
+label_input_y = tk.Label(frame_inputs, text="Y:", font=font_label, bg="#f0f0f5")
+label_input_y.grid(row=8, column=0, padx=10, pady=5, sticky="w")
+entry_input_y = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_y.grid(row=8, column=1, padx=5, pady=5)
+
+label_input_z = tk.Label(frame_inputs, text="Z:", font=font_label, bg="#f0f0f5")
+label_input_z.grid(row=9, column=0, padx=10, pady=5, sticky="w")
+entry_input_z = tk.Entry(frame_inputs, font=font_entry, width=10)
+entry_input_z.grid(row=9, column=1, padx=5, pady=5)
+
+# Nút tính toán Inverse Kinematic
+btn_calc_ik = tk.Button(
+    frame_inputs, text="CAL IK", command=calculate_inv_kinematic,
+    font=font_button, bg="#607D8B", fg="white", width=12
+)
+btn_calc_ik.grid(row=10, column=0, columnspan=2, pady=10)
+
+# Hiển thị kết quả Inverse Kinematic
+label_out1 = tk.Label(frame_inputs, text="Theta 1:", font=font_label, bg="#f0f0f5")
+label_out1.grid(row=7, column=3, padx=5, pady=5, sticky="w")
+entry_out1 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out1.grid(row=7, column=4, padx=(0, 10), pady=5)
+
+label_out2 = tk.Label(frame_inputs, text="Theta 2:", font=font_label, bg="#f0f0f5")
+label_out2.grid(row=8, column=3, padx=5, pady=5, sticky="w")
+entry_out2 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out2.grid(row=8, column=4, padx=(0, 10), pady=5)
+
+label_out3 = tk.Label(frame_inputs, text="Theta 3:", font=font_label, bg="#f0f0f5")
+label_out3.grid(row=9, column=3, padx=5, pady=5, sticky="w")
+entry_out3 = tk.Entry(frame_inputs, font=font_entry, width=8, state='readonly')
+entry_out3.grid(row=9, column=4, padx=(0, 10), pady=5)
+
+# Nút điều khiển bên phải
+frame_buttons = tk.Frame(frame_main, bg="#f0f0f5")
+frame_buttons.pack(side=tk.RIGHT, padx=20, fill="y") # fill="y" để frame buttons cao bằng frame inputs
+
+button_home = tk.Button(frame_buttons, text="SET HOME", command=set_home,
+                        font=font_button, bg="#4CAF50", fg="white", width=15)
+button_home.pack(pady=5, fill="x") # fill="x" để nút rộng bằng frame
+
+button_send = tk.Button(frame_buttons, text="SEND DATA", command=send_angles,
+                        font=font_button, bg="#008CBA", fg="white", width=15)
+button_send.pack(pady=5, fill="x")
+
+button_stop = tk.Button(frame_buttons, text="STOP", command=stop,
+                        font=font_button, bg="#f44336", fg="white", width=15)
+button_stop.pack(pady=5, fill="x")
+
+button_hut = tk.Button(frame_buttons, text="UP", command=hut_namcham,
+                       font=font_button, bg="#009688", fg="white", width=15)
+button_hut.pack(pady=5, fill="x")
+
+button_tha = tk.Button(frame_buttons, text="DOWN", command=tha_namcham,
+                       font=font_button, bg="#795548", fg="white", width=15)
+button_tha.pack(pady=5, fill="x")
+
+# --- Ô nhập điểm đầu và điểm cuối cho quỹ đạo ---
+label_traj = tk.Label(frame_buttons, text="TRAJECTORY POINTS", font=("Helvetica", 15, "bold"),
+                      bg="#f0f0f5", fg="#333")
+label_traj.pack(pady=(15, 5))
+
+# Điểm đầu P0
+label_p0 = tk.Label(frame_buttons, text="P0: (X0, Y0, Z0)", font=font_label, bg="#f0f0f5")
+label_p0.pack()
+
+frame_p0 = tk.Frame(frame_buttons, bg="#f0f0f5")
+frame_p0.pack(pady=3)
+
+entry_x0 = tk.Entry(frame_p0, font=font_entry, width=6)
+entry_x0.pack(side=tk.LEFT, padx=2)
+
+entry_y0 = tk.Entry(frame_p0, font=font_entry, width=6)
+entry_y0.pack(side=tk.LEFT, padx=2)
+
+entry_z0 = tk.Entry(frame_p0, font=font_entry, width=6)
+entry_z0.pack(side=tk.LEFT, padx=2)
+
+# Điểm cuối Pf
+label_pf = tk.Label(frame_buttons, text="Pf: (Xf, Yf, Zf, tf)", font=font_label, bg="#f0f0f5")
+label_pf.pack()
+
+frame_pf = tk.Frame(frame_buttons, bg="#f0f0f5")
+frame_pf.pack(pady=3)
+
+entry_xf = tk.Entry(frame_pf, font=font_entry, width=6)
+entry_xf.pack(side=tk.LEFT, padx=2)
+
+entry_yf = tk.Entry(frame_pf, font=font_entry, width=6)
+entry_yf.pack(side=tk.LEFT, padx=2)
+
+entry_zf = tk.Entry(frame_pf, font=font_entry, width=6)
+entry_zf.pack(side=tk.LEFT, padx=2)
+
+entry_tf = tk.Entry(frame_pf, font=font_entry, width=6)
+entry_tf.pack(side=tk.LEFT, padx=2)
+
+# Nút chạy quỹ đạo
+button_traj = tk.Button(frame_buttons, text="CHẠY QUỸ ĐẠO", command=send_trajectory,
+                        font=font_button, bg="#FF5722", fg="white", width=15)
+button_traj.pack(pady=10, fill="x")
+
+
+# Frame chứa text box ở giữa
+frame_text_center = tk.Frame(window, bg="#f0f0f5")
+frame_text_center.pack(pady=20) # Thêm pady để có khoảng cách trên dưới
+
+text_box = tk.Text(frame_text_center, font=("Courier New", 11), width=60, height=10)
+text_box.pack(side=tk.LEFT, fill="both", expand=True) # fill và expand để text box lấp đầy frame
+
+scrollbar = tk.Scrollbar(frame_text_center, command=text_box.yview)
+scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+text_box.config(yscrollcommand=scrollbar.set)
+
+# Thread đọc Serial (vẫn giữ nguyên vị trí)
+serial_thread = threading.Thread(target=read_serial)
+serial_thread.daemon = True
+serial_thread.start()
+
 window.mainloop()
