@@ -100,25 +100,6 @@ def calculate_inv_kinematic():
         messagebox.showerror("Lỗi tính toán", str(e))
     except Exception as e:
         messagebox.showerror("Lỗi không xác định", f"Đã xảy ra lỗi: {e}")
-# def run_trajectory(P0, Pf, tf=3.0, dt=0.1):
-#     t = 0
-#     while t <= tf:
-#         x, y, z = Kinematic.trajectory_planning_2_point(t, P0, Pf, tf)
-#         try:
-#             theta1, theta2, theta3 = Kinematic.inverse_kinematic(x, y, z)
-#             data = f"{theta1:.2f}A{theta2:.2f}B{theta3:.2f}C\r"
-#             print(f"[{t:.2f}s] Gửi: {data.strip()}")
-#             ser.write(data.encode())
-#             while True:
-#                 if ser.in_waiting > 0:
-#                     resp = ser.readline().decode().strip()
-#                     if resp == "OK":
-#                         break
-#             time.sleep(dt)
-#             t += dt
-#         except Exception as e:
-#             print(f"Lỗi tại t={t:.2f}s: {e}")
-#             break
 def send_trajectory():
     try:
         x0 = float(entry_x0.get())
@@ -129,32 +110,14 @@ def send_trajectory():
         zf = float(entry_zf.get())
         tf = float(entry_tf.get())  # thêm ô nhập tf
 
-        # Gửi dạng: x0,y0,z0|xf,yf,zf|tf
-        data = f"{x0},{y0},{z0}|{xf},{yf},{zf}|{tf}\r"
+        # Gửi dạng: P0:x0,y0,z0;Pf:xf,yf,zf;T:tf
+        data = f"P0:{x0},{y0},{z0};Pf:{xf},{yf},{zf};T:{tf}\r"
         ser.write(data.encode())
         print(f"Gửi: {data.strip()}")
 
-    except Exception as e:
+    except Exception as e: # bắt bất kì lỗi nào trong phần try
         messagebox.showerror("Lỗi", str(e))
 
-# def start_trajectory():
-#     try:
-#         # Lấy P0
-#         x0 = float(entry_x0.get())
-#         y0 = float(entry_y0.get())
-#         z0 = float(entry_z0.get())
-#
-#         # Lấy Pf
-#         xf = float(entry_xf.get())
-#         yf = float(entry_yf.get())
-#         zf = float(entry_zf.get())
-#
-#         tf = 5.0  # thời gian quỹ đạo, bạn có thể thêm ô nhập nếu muốn chỉnh thời gian
-#
-#         threading.Thread(target=run_trajectory, args=((x0, y0, z0), (xf, yf, zf), tf)).start()
-#
-#     except Exception as e:
-#         messagebox.showerror("Lỗi", f"Không thể khởi động quỹ đạo: {e}")
 def set_home():
     ser.write(bytes('h' + '\r', 'utf-8'))
     result = Kinematic.forward_kinematic(0,0,0)
@@ -175,6 +138,18 @@ def set_home():
     entry_z.config(state='readonly')
 def stop():
     ser.write(bytes('s' + '\r', 'utf-8'))
+def move_z_plus():
+    ser.write(bytes('z' + '\r', 'utf-8'))
+def move_z_minus():
+    ser.write(bytes('c' + '\r', 'utf-8'))
+def move_y_plus():
+    ser.write(bytes('y' + '\r', 'utf-8'))
+def move_y_minus():
+    ser.write(bytes('i' + '\r', 'utf-8'))
+def move_x_plus():
+    ser.write(bytes('x' + '\r', 'utf-8'))
+def move_x_minus():
+    ser.write(bytes('v' + '\r', 'utf-8'))
 def hut_namcham():
     ser.write(bytes('u' + '\r', 'utf-8'))
 def tha_namcham():
@@ -222,38 +197,44 @@ def send_theta3():
         messagebox.showerror("Error", "Theta 3 không hợp lệ!")
 
 cap = None
-cam_running = False
+camera_running = False
 
 def start_camera():
-    global cap, cam_running
-    if not cam_running:
+    global cap, camera_running
+    if not camera_running:
         cap = cv2.VideoCapture(0)
-        cam_running = True
-        update_frame()
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        camera_running = True
+        update_frame()  # Bắt đầu cập nhật khung hình
 
 def stop_camera():
-    global cap, cam_running
-    cam_running = False
-    if cap:
+    global cap, camera_running
+    camera_running = False
+    if cap is not None:
         cap.release()
-        label_cam.config(image='')
+    label_cam.config(image='', bg="black")  # Xóa ảnh, giữ khung đen
 
 def update_frame():
-    global cap, cam_running
-    if cam_running and cap.isOpened():
+    global cap, camera_running
+    if camera_running and cap.isOpened():
         ret, frame = cap.read()
         if ret:
+            frame = cv2.resize(frame, (720, 370))  # Đảm bảo đúng kích thước
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img = Image.fromarray(frame)
             imgtk = ImageTk.PhotoImage(image=img)
-            label_cam.imgtk = imgtk
-            label_cam.configure(image=imgtk)
-        label_cam.after(10, update_frame)
-
+            label_cam.imgtk = imgtk  # Giữ tham chiếu
+            label_cam.config(image=imgtk)
+        label_cam.after(10, update_frame)  # Gọi lại sau 10ms
+def emergency_stop():
+    ser.write(bytes('w' + '\r', 'utf-8'))
+def run_command():
+    ser.write(bytes('j' + '\r', 'utf-8'))
 # Giao diện chính
 window = tk.Tk()
-# window.title("Gửi góc điều khiển tới Arduino")
-window.geometry("850x750")
+window.title("GUI")
+# window.geometry("850x750")
 window.configure(bg="#f0f0f5")  # Màu nền nhẹ nhàng
 
 font_title = ("Arial", 20, "bold")
@@ -267,33 +248,45 @@ try:
     image = image.resize((750, 100))  # Resize ảnh nếu cần
     photo = ImageTk.PhotoImage(image)
     label_image = tk.Label(window, image=photo, bg="#f0f0f5")
-    label_image.image = photo  # Giữ tham chiếu ảnh
-    label_image.pack(pady=(10, 5))
+    label_image.image = photo      # Giữ tham chiếu ảnh, nếu một photo không
+    label_image.pack(pady=(10, 5)) # còn được tham chiếu bởi 1 biến python,
+# 10 pixel đệm ở phía trên, 5 ở dưới # Tkinter sẽ xóa khỏi bộ nhớ
+
 except Exception as e:
     print(f"Lỗi khi tải ảnh: {e}")
-title = tk.Label(window, text="CONTROL INTERFACE", font=font_title, bg="#f0f0f5", fg="#333")
-title.pack(pady=10)
+# tk.Label là tạo một nhãn, nhãn này thuộc về cửa sổ chính window
+title = tk.Label(window, text="ROBOT DELTA", font=font_title, bg="#f0f0f5", fg="#333")
+title.pack(pady=10) # đệm 10 pixel cho cả phía trên và dưới
 
 # Frame chính chứa các phần bên trái và bên phải
 frame_main = tk.Frame(window, bg="#f0f0f5")
-frame_main.pack(pady=10, padx=20, fill="x") # Thêm padx và fill để frame chính rộng hơn
+frame_main.pack(pady=10, padx=20, fill=tk.BOTH, expand=True) # Thêm padx và fill để frame chính rộng hơn
+
+# Khung bên phải gồm camera ở trên và nút điều khiển ở dưới
+frame_right_zone = tk.Frame(frame_main, bg="#f0f0f5")
+frame_right_zone.pack(side=tk.RIGHT, fill="y", padx=10)
+
+# Đặt frame_camera vào trong frame_right_zone
+frame_camera = tk.Frame(frame_right_zone, bg="#e0e0e0", bd=2, relief=tk.SUNKEN)
+frame_camera.pack(pady=(0, 5))  # Đệm phía dưới để tách khỏi nút
+
+# Các nút điều khiển ở dưới cùng bên phải
+frame_bottom_right = tk.Frame(frame_right_zone, bg="#f0f0f5")
+frame_bottom_right.pack(side=tk.BOTTOM, anchor="e", pady=10)
+
 
 # Inputs bên trái
 frame_inputs = tk.Frame(frame_main, bg="#f0f0f5")
 frame_inputs.pack(side=tk.LEFT, fill="y") # fill="y" để frame inputs cao bằng frame buttons
-# ||||||||||||||||||||||||||
-# label_for_kinematic = tk.Label(frame_inputs, text="FORWARD KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
-# label_for_kinematic.grid(row=0, column=0, columnspan=3, padx=10, pady=(20, 5), sticky="w")
-# |||||||||||||||||||||||||||
+
 # Khung tổng cho phần bên phải
-frame_camera = tk.Frame(frame_main, bg="#e0e0e0", bd=2, relief=tk.SUNKEN)
-frame_camera.pack(side=tk.RIGHT, padx=10, pady=10, fill="both", expand=True)
+# frame_camera = tk.Frame(frame_main, bg="#e0e0e0", bd=2, relief=tk.SUNKEN)
+# frame_camera.pack(side=tk.RIGHT, padx=10, pady=10)
 
-# Label hiển thị camera - chiếm phần lớn khung
 label_cam = tk.Label(frame_camera, bg="black")
-label_cam.pack(fill="both", expand=True, padx=10, pady=10)
+label_cam.pack(padx=10, pady=(10, 5), anchor="n")  # Cố định ở phía trên
 
-# Khung chứa nút start/stop đặt phía dưới cùng bên phải
+# Khung chứa nút start/stop đặt phía dưới cùng bên phải khung camera
 frame_cam_buttons = tk.Frame(frame_camera, bg="#e0e0e0")
 frame_cam_buttons.pack(side=tk.BOTTOM, anchor="e", padx=10, pady=10)
 
@@ -305,18 +298,17 @@ btn_stop_cam = tk.Button(frame_cam_buttons, text="STOP CAMERA", command=stop_cam
                          font=font_button, bg="#f44336", fg="white", width=16)
 btn_stop_cam.pack(side=tk.LEFT, padx=5)
 
-
 label_for_kinematic = tk.Label(frame_inputs, text="FORWARD KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
 label_for_kinematic.grid(row=0, column=0, columnspan=2, padx=10, pady=(20, 5), sticky="w")
-# sticky: xác định tiện ích bám vào phía nào của ô
-# columnspan:chỉ định số cột tiện ích chiếm giữ
+# STICKY: XÁC ĐỊNH TIỆN ÍCH BÁM VÀO PHÍA NÀO CỦA Ô
+# COLUMNSPAN:CHỈ ĐỊNH SỐ CỘT TIỆN ÍCH CHIẾM GIỮ
 
-# Theta 1
+# Theta 1 FORWARD KINEMATIC
 label_theta1 = tk.Label(frame_inputs, text="Theta 1 (°):", font=font_label, bg="#f0f0f5")
 label_theta1.grid(row=1, column=0, padx=10, pady=5, sticky="w")
 entry_theta1 = tk.Entry(frame_inputs, font=font_entry, width=10)
 entry_theta1.grid(row=1, column=1, pady=5)
-button_t1 = tk.Button(frame_inputs, text="SEND", command=send_theta1, font=font_button, bg="#9C27B0", fg="white", width=6)
+button_t1 = tk.Button(frame_inputs, text="SEND", command=send_theta1, font=font_button, bg="#b5b0a7", fg="white", width=6)
 button_t1.grid(row=1, column=2, padx=5)
 
 # Theta 2
@@ -324,7 +316,7 @@ label_theta2 = tk.Label(frame_inputs, text="Theta 2 (°):", font=font_label, bg=
 label_theta2.grid(row=2, column=0, padx=10, pady=5, sticky="w")
 entry_theta2 = tk.Entry(frame_inputs, font=font_entry, width=10)
 entry_theta2.grid(row=2, column=1, pady=5)
-button_t2 = tk.Button(frame_inputs, text="SEND", command=send_theta2, font=font_button, bg="#FF9800", fg="white", width=6)
+button_t2 = tk.Button(frame_inputs, text="SEND", command=send_theta2, font=font_button, bg="#b5b0a7", fg="white", width=6)
 button_t2.grid(row=2, column=2, padx=5)
 
 # Theta 3
@@ -332,7 +324,7 @@ label_theta3 = tk.Label(frame_inputs, text="Theta 3 (°):", font=font_label, bg=
 label_theta3.grid(row=3, column=0, padx=10, pady=5, sticky="w")
 entry_theta3 = tk.Entry(frame_inputs, font=font_entry, width=10)
 entry_theta3.grid(row=3, column=1, pady=5)
-button_t3 = tk.Button(frame_inputs, text="SEND", command=send_theta3, font=font_button, bg="#3F51B5", fg="white", width=6)
+button_t3 = tk.Button(frame_inputs, text="SEND", command=send_theta3, font=font_button, bg="#b5b0a7", fg="white", width=6)
 button_t3.grid(row=3, column=2, padx=5)
 
 # Nhãn "Vị trí (mm):"
@@ -401,104 +393,19 @@ entry_theta3_ik.pack(side=tk.LEFT, padx=(0, 10))
 # Nút tính toán Inverse Kinematic
 btn_calc_ik = tk.Button(
     frame_inputs, text="CAL IK", command=calculate_inv_kinematic,
-    font=font_button, bg="#607D8B", fg="white", width=12
+    font=font_button, bg="#b5b0a7", fg="white", width=12
 )
 btn_calc_ik.grid(row=10, column=0, columnspan=2, pady=10)
 
-# Nút điều khiển bên phải
-# frame_buttons = tk.Frame(frame_main, bg="#f0f0f5")
-# frame_buttons.pack(side=tk.RIGHT, padx=20, fill="y") # fill="y" để frame buttons cao bằng frame inputs
+# CÁC NÚT ĐIỀU KHIỂN
 frame_buttons = tk.Frame(frame_inputs, bg="#f0f0f5")
 frame_buttons.grid(row=7, column=5, rowspan=5, padx=(20, 0), sticky="n")
-# ||||||||||||||||||||||||||||
-# button_home = tk.Button(frame_buttons, text="SET HOME", command=set_home,
-#                         font=font_button, bg="#4CAF50", fg="white", width=15)
-# button_home.pack(pady=5, fill="x") # fill="x" để nút rộng bằng frame
-# |||||||||||||||||||||||||
-# button_home = tk.Button(frame_inputs, text="SET HOME", command=set_home,
-#                         font=font_button, bg="#4CAF50", fg="white", width=12)
-# button_home.grid(row=0, column=3, padx=10, pady=(20, 5), sticky="e")
-# button_send = tk.Button(frame_buttons, text="SEND DATA", command=send_angles,
-#                         font=font_button, bg="#008CBA", fg="white", width=15)
-# button_send.pack(pady=5, fill="x")
-#
-# button_stop = tk.Button(frame_buttons, text="STOP", command=stop,
-#                         font=font_button, bg="#f44336", fg="white", width=15)
-# button_stop.pack(pady=5, fill="x")
-#
-# button_hut = tk.Button(frame_buttons, text="UP", command=hut_namcham,
-#                        font=font_button, bg="#009688", fg="white", width=15)
-# button_hut.pack(pady=5, fill="x")
-#
-# button_tha = tk.Button(frame_buttons, text="DOWN", command=tha_namcham,
-#                        font=font_button, bg="#795548", fg="white", width=15)
-# button_tha.pack(pady=5, fill="x")
-#
-# # --- Ô nhập điểm đầu và điểm cuối cho quỹ đạo ---
-# label_traj = tk.Label(frame_buttons, text="TRAJECTORY POINTS", font=("Helvetica", 15, "bold"),
-#                       bg="#f0f0f5", fg="#333")
-# label_traj.pack(pady=(15, 5))
-#
-# # Điểm đầu P0
-# label_p0 = tk.Label(frame_buttons, text="P0: (X0, Y0, Z0)", font=font_label, bg="#f0f0f5")
-# label_p0.pack()
-#
-# frame_p0 = tk.Frame(frame_buttons, bg="#f0f0f5")
-# frame_p0.pack(pady=3)
-#
-# entry_x0 = tk.Entry(frame_p0, font=font_entry, width=6)
-# entry_x0.pack(side=tk.LEFT, padx=2)
-#
-# entry_y0 = tk.Entry(frame_p0, font=font_entry, width=6)
-# entry_y0.pack(side=tk.LEFT, padx=2)
-#
-# entry_z0 = tk.Entry(frame_p0, font=font_entry, width=6)
-# entry_z0.pack(side=tk.LEFT, padx=2)
-#
-# # Điểm cuối Pf
-# label_pf = tk.Label(frame_buttons, text="Pf: (Xf, Yf, Zf, tf)", font=font_label, bg="#f0f0f5")
-# label_pf.pack()
-#
-# frame_pf = tk.Frame(frame_buttons, bg="#f0f0f5")
-# frame_pf.pack(pady=3)
-#
-# entry_xf = tk.Entry(frame_pf, font=font_entry, width=6)
-# entry_xf.pack(side=tk.LEFT, padx=2)
-#
-# entry_yf = tk.Entry(frame_pf, font=font_entry, width=6)
-# entry_yf.pack(side=tk.LEFT, padx=2)
-#
-# entry_zf = tk.Entry(frame_pf, font=font_entry, width=6)
-# entry_zf.pack(side=tk.LEFT, padx=2)
-#
-# entry_tf = tk.Entry(frame_pf, font=font_entry, width=6)
-# entry_tf.pack(side=tk.LEFT, padx=2)
-# |||||||||||||||||||
+
 frame_controls = tk.Frame(frame_inputs, bg="#f0f0f5")
-frame_controls.grid(row=1, column=3, rowspan=9, padx=(20, 5), sticky="n")
-
-button_home = tk.Button(frame_controls, text="SET HOME", command=set_home,
-                        font=font_button, bg="#4CAF50", fg="white", width=12)
-button_home.pack(pady=5)
-
-button_send = tk.Button(frame_controls, text="SEND DATA", command=send_angles,
-                        font=font_button, bg="#008CBA", fg="white", width=12)
-button_send.pack(pady=5)
-
-button_stop = tk.Button(frame_controls, text="STOP", command=stop,
-                        font=font_button, bg="#f44336", fg="white", width=12)
-button_stop.pack(pady=5)
-
-button_hut = tk.Button(frame_controls, text="UP", command=hut_namcham,
-                       font=font_button, bg="#009688", fg="white", width=12)
-button_hut.pack(pady=5)
-
-button_tha = tk.Button(frame_controls, text="DOWN", command=tha_namcham,
-                       font=font_button, bg="#795548", fg="white", width=12)
-button_tha.pack(pady=5)
+frame_controls.grid(row=6, column=3, rowspan=9, padx=(20, 5), sticky="n")
 
 # --- Trajectory inputs ---
-label_traj = tk.Label(frame_controls, text="TRAJECTORY POINTS", font=("Helvetica", 15, "bold"), bg="#f0f0f5", fg="#333")
+label_traj = tk.Label(frame_controls, text="TRAJECTORY POINTS", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
 label_traj.pack(pady=(12, 5))
 
 # P0
@@ -520,23 +427,22 @@ entry_yf = tk.Entry(frame_pf, font=font_entry, width=6); entry_yf.pack(side=tk.L
 entry_zf = tk.Entry(frame_pf, font=font_entry, width=6); entry_zf.pack(side=tk.LEFT, padx=2)
 entry_tf = tk.Entry(frame_pf, font=font_entry, width=6); entry_tf.pack(side=tk.LEFT, padx=2)
 
-# |||||||||||||||||||||
 # # Nút chạy quỹ đạo
-# button_traj = tk.Button(frame_buttons, text="RUN TRAJECTORY", command=send_trajectory,
-#                         font=font_button, bg="#FF5722", fg="white", width=15)
-# button_traj.pack(pady=10, fill="x")
-# ||||||||||||||||||||||||
 button_traj = tk.Button(frame_inputs, text="RUN TRAJECTORY", command=send_trajectory,
                         font=font_button, bg="#FF5722", fg="white", width=15)
 button_traj.grid(row=10, column=3, padx=10, pady=10, sticky="e")
-# Frame chứa text box ở giữa
-frame_text_center = tk.Frame(window, bg="#f0f0f5")
-frame_text_center.pack(pady=20) # Thêm pady để có khoảng cách trên dưới
 
-text_box = tk.Text(frame_text_center, font=("Courier New", 11), width=60, height=10)
-text_box.pack(side=tk.LEFT, fill="both", expand=True) # fill và expand để text box lấp đầy frame
+bottom_bar_frame = tk.Frame(window, bg="#f0f0f5")
+bottom_bar_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(5, 10))
 
-scrollbar = tk.Scrollbar(frame_text_center, command=text_box.yview)
+# # Frame chứa text box
+frame_text_bottom_left = tk.Frame(bottom_bar_frame, bg="#f0f0f5")
+frame_text_bottom_left.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 5))
+
+text_box = tk.Text(frame_text_bottom_left, font=("Courier New", 11), width=60, height=5)
+text_box.pack(side=tk.RIGHT, fill="both", expand=True)
+
+scrollbar = tk.Scrollbar(frame_text_bottom_left, command=text_box.yview)
 scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 text_box.config(yscrollcommand=scrollbar.set)
 
@@ -544,5 +450,53 @@ text_box.config(yscrollcommand=scrollbar.set)
 serial_thread = threading.Thread(target=read_serial)
 serial_thread.daemon = True
 serial_thread.start()
+
+# # Khung chứa nút điều khiển phía dưới bên phải
+frame_control_buttons_bottom = tk.Frame(bottom_bar_frame, bg="#f0f0f5")
+frame_control_buttons_bottom.pack(side=tk.LEFT, padx=(5, 0))
+
+# Cột 1
+col1 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5")
+col1.grid(row=0, column=0, padx=10)
+
+btn_home = tk.Button(col1, text="SET HOME", command=set_home, font=font_button, bg="#edaa1a", fg="white", width=10)
+btn_home.pack(pady=3)
+btn_stop = tk.Button(col1, text="STOP", command=stop, font=font_button, bg="#f44336", fg="white", width=10)
+btn_stop.pack(pady=3)
+btn_emg = tk.Button(col1, text="EMG", command=emergency_stop, font=font_button, bg="#B71C1C", fg="white", width=10)
+btn_emg.pack(pady=3)
+
+# Cột 2
+col2 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5")
+col2.grid(row=0, column=1, padx=10)
+
+btn_z_plus = tk.Button(col2, text="Z+", command=move_z_plus, font=font_button, bg="#b5b0a7", fg="white", width=8)
+btn_z_plus.pack(pady=3)
+btn_z_minus = tk.Button(col2, text="Z-", command=move_z_minus, font=font_button, bg="#b5b0a7", fg="white", width=8)
+btn_z_minus.pack(pady=3)
+btn_y_plus = tk.Button(col2, text="Y+", command=move_y_plus, font=font_button, bg="#b5b0a7", fg="white", width=8)
+btn_y_plus.pack(pady=3)
+
+# Cột 3
+col3 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5")
+col3.grid(row=0, column=2, padx=10)
+
+btn_x_minus = tk.Button(col3, text="X-", command=move_x_minus, font=font_button, bg="#b5b0a7", fg="white", width=8)
+btn_x_minus.pack(pady=3)
+btn_x_plus = tk.Button(col3, text="X+", command=move_x_plus, font=font_button, bg="#b5b0a7", fg="white", width=8)
+btn_x_plus.pack(pady=3)
+btn_y_minus = tk.Button(col3, text="Y-", command=move_y_minus, font=font_button, bg="#b5b0a7", fg="white", width=8)
+btn_y_minus.pack(pady=3)
+
+# Cột 4
+col4 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5")
+col4.grid(row=0, column=3, padx=10)
+
+btn_up = tk.Button(col4, text="UP", command=hut_namcham, font=font_button, bg="#009688", fg="white", width=8)
+btn_up.pack(pady=3)
+btn_down = tk.Button(col4, text="DOWN", command=tha_namcham, font=font_button, bg="#795548", fg="white", width=8)
+btn_down.pack(pady=3)
+btn_run = tk.Button(col4, text="RUN", command=run_command, font=font_button, bg="#57e334", fg="white", width=8)
+btn_run.pack(pady=3)
 
 window.mainloop()
