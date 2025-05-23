@@ -8,7 +8,7 @@ import cv2
 from PIL import Image, ImageTk
 
 # Setup Serial
-ser = serial.Serial('COM5', 9600)
+ser = serial.Serial('COM9', 9600)
 time.sleep(1)
 
 def send_angles():
@@ -42,7 +42,7 @@ def send_angles():
             if not (-137.94 <= y <= 137.94):
                 messagebox.showerror("Lỗi", f"Y={y:.2f} nằm ngoài giới hạn robot")
                 return
-            if not (-398.23 <= z <= -287.30):
+            if not (-398.23 <= z <= -307.38):
                 messagebox.showerror("Lỗi", f"Z={z:.2f} nằm ngoài giới hạn robot")
                 return
 
@@ -418,7 +418,7 @@ entry_y0 = tk.Entry(frame_p0, font=font_entry, width=6); entry_y0.pack(side=tk.L
 entry_z0 = tk.Entry(frame_p0, font=font_entry, width=6); entry_z0.pack(side=tk.LEFT, padx=2)
 
 # Pf
-label_pf = tk.Label(frame_controls, text="Pf: (Xf, Yf, Zf, tf)", font=font_label, bg="#f0f0f5")
+label_pf = tk.Label(frame_controls, text="Pf: (Xf, Yf, Zf) | tf", font=font_label, bg="#f0f0f5")
 label_pf.pack()
 frame_pf = tk.Frame(frame_controls, bg="#f0f0f5")
 frame_pf.pack(pady=3)
@@ -496,7 +496,7 @@ btn_up = tk.Button(col4, text="UP", command=hut_namcham, font=font_button, bg="#
 btn_up.pack(pady=3)
 btn_down = tk.Button(col4, text="DOWN", command=tha_namcham, font=font_button, bg="#795548", fg="white", width=8)
 btn_down.pack(pady=3)
-btn_run = tk.Button(col4, text="RUN", command=run_command, font=font_button, bg="#57e334", fg="white", width=8)
+btn_run = tk.Button(col4, text="RUN", command=send_angles, font=font_button, bg="#57e334", fg="white", width=8)
 btn_run.pack(pady=3)
 
 window.mainloop()
