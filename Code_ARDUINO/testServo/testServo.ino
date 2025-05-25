@@ -187,14 +187,14 @@ void loop()
       StopMotor_1(); StopMotor_2(); StopMotor_3();
     }
   }
-  encoderRawNow_1 = encoderPosition_1;
-  delta_1 = encoderRawNow_1 - encoderRawLast_1;
-  encoderRawLast_1 = encoderRawNow_1;
+  // encoderRawNow_1 = encoderPosition_1;
+  // delta_1 = encoderRawNow_1 - encoderRawLast_1;
+  // encoderRawLast_1 = encoderRawNow_1;
   
-  if (lastDir_1_encoder == 1)
-    encoderCalibrated_1 += delta_1 * encoderGainThuan;
-  else
-    encoderCalibrated_1 += delta_1 * encoderGainNghich;
+  // if (lastDir_1_encoder == 1)
+  //   encoderCalibrated_1 += delta_1 * encoderGainThuan;
+  // else
+  //   encoderCalibrated_1 += delta_1 * encoderGainNghich;
 
   // long rawNow_2 = encoderRaw_2;
   // long delta_2 = rawNow_2 - lastEncoderRaw_2;
@@ -205,18 +205,18 @@ void loop()
   // else
   //     encoderPosition_2 += delta_2;
 
-  long rawNow_3 = encoderRaw_3;
-  delta_3 = rawNow_3 - lastEncoderRaw_3;
-  lastEncoderRaw_3 = rawNow_3;
+  // long rawNow_3 = encoderRaw_3;
+  // delta_3 = rawNow_3 - lastEncoderRaw_3;
+  // lastEncoderRaw_3 = rawNow_3;
 
-  if (lastDir_3_encoder == -1)  // quay ngược
-      encoderPosition_3 += delta_3 * 2;
-  else
-      encoderPosition_3 += delta_3;
+  // if (lastDir_3_encoder == -1)  // quay ngược
+  //     encoderPosition_3 += delta_3 * 2;
+  // else
+  //     encoderPosition_3 += delta_3;
 
   if (millis() - lastPrintTime >= 2000) 
   { 
-      Serial.print("Encoder 1: "); Serial.print((long)encoderCalibrated_1);  Serial.print("  ");
+      Serial.print("Encoder 1: "); Serial.print(encoderPosition_1);  Serial.print("  ");
       Serial.print("Encoder 2: "); Serial.print(encoderPosition_2);  Serial.print("  ");
       Serial.print("Encoder 3: "); Serial.println(encoderPosition_3); 
       // (long)encoderCalibrated_1 
@@ -225,6 +225,72 @@ void loop()
   RunMotor_1();
   RunMotor_2();
   RunMotor_3();
+}
+///////////////////////////////////////////RECEIVE ENCODER VALUE/////////////////////////////////////
+// Hàm đếm xung encoder khi có sự thay đổi trạng thái
+// TTL: Transistor-Transistor Logic,  hoạt động trong khoảng 0-5V
+void handleA_1() {
+  int delta = 0;
+  if (READ_A_1) {
+    if (READ_B_1) delta = -1;
+    else delta = +1;
+  } else {
+    if (READ_B_1) delta = +1;
+    else delta = -1;
+  }
+  encoderPosition_1 += delta;
+}
+void handleB_1() {
+  int delta = 0;
+  if (READ_B_1) {
+    if (READ_A_1) delta = +1;
+    else delta = -1;
+  } else {
+    if (READ_A_1) delta = -1;
+    else delta = +1;
+  }
+  encoderPosition_1 += delta;
+}
+void handleA_2() {
+  if (READ_A_2) {
+    if (READ_B_2) encoderPosition_2 --;
+    else encoderPosition_2 ++;
+  } else {
+    if (READ_B_2) encoderPosition_2 ++;
+    else encoderPosition_2 --;
+  }
+}
+void handleB_2() {
+  if (READ_B_2) {
+    if (READ_A_2) encoderPosition_2 ++;
+    else encoderPosition_2 --;
+  } else {
+    if (READ_A_2) encoderPosition_2 --;
+    else encoderPosition_2 ++;
+  }
+}
+
+void handleA_3() {
+  int delta = 0;
+  if (READ_A_3) {
+    if (READ_B_3) delta = -1;
+    else delta = +1;
+  } else {
+    if (READ_B_3) delta = +1;
+    else delta = -1;
+  }
+  encoderPosition_3 += delta;
+}
+void handleB_3() {
+  int delta = 0;
+  if (READ_B_3) {
+    if (READ_A_3) delta = +1;
+    else delta = -1;
+  } else {
+    if (READ_A_3) delta = -1;
+    else delta = +1;
+  }
+  encoderPosition_3 += delta;
 }
 
 void runToAngle(int motorID, float angle) 
@@ -360,93 +426,6 @@ bool inverse_kinematic(float X_ee, float Y_ee, float Z_ee, float *J) // J là m�
   }
 
   return true;
-}
-///////////////////////////////////////////RECEIVE ENCODER VALUE/////////////////////////////////////
-// Hàm đếm xung encoder khi có sự thay đổi trạng thái
-// TTL: Transistor-Transistor Logic,  hoạt động trong khoảng 0-5V
-void handleA_1() {
-  int delta = 0;
-  if (READ_A_1) {
-    if (READ_B_1) delta = -1;
-    else delta = +1;
-  } else {
-    if (READ_B_1) delta = +1;
-    else delta = -1;
-  }
-  encoderPosition_1 += delta;
-}
-void handleB_1() {
-  int delta = 0;
-  if (READ_B_1) {
-    if (READ_A_1) delta = +1;
-    else delta = -1;
-  } else {
-    if (READ_A_1) delta = -1;
-    else delta = +1;
-  }
-  encoderPosition_1 += delta;
-}
-void handleA_2() {
-  if (READ_A_2) {
-    if (READ_B_2) encoderPosition_2 --;
-    else encoderPosition_2 ++;
-  } else {
-    if (READ_B_2) encoderPosition_2 ++;
-    else encoderPosition_2 --;
-  }
-}
-void handleB_2() {
-  if (READ_B_2) {
-    if (READ_A_2) encoderPosition_2 ++;
-    else encoderPosition_2 --;
-  } else {
-    if (READ_A_2) encoderPosition_2 --;
-    else encoderPosition_2 ++;
-  }
-}
-// void handleA_2() {
-//   int delta = 0;
-//   if (READ_A_2) {
-//     if (READ_B_2) delta = -1;
-//     else delta = +1;
-//   } else {
-//     if (READ_B_2) delta = +1;
-//     else delta = -1;
-//   }
-//   encoderPosition_2 += delta;
-// }
-// void handleB_2() {
-//   int delta = 0;
-//   if (READ_B_2) {
-//     if (READ_A_2) delta = +1;
-//     else delta = -1;
-//   } else {
-//     if (READ_A_2) delta = -1;
-//     else delta = +1;
-//   }
-//   encoderPosition_2 += delta;
-// }
-void handleA_3() {
-  int delta = 0;
-  if (READ_A_3) {
-    if (READ_B_3) delta = -1;
-    else delta = +1;
-  } else {
-    if (READ_B_3) delta = +1;
-    else delta = -1;
-  }
-  encoderRaw_3 += delta;
-}
-void handleB_3() {
-  int delta = 0;
-  if (READ_B_3) {
-    if (READ_A_3) delta = +1;
-    else delta = -1;
-  } else {
-    if (READ_A_3) delta = -1;
-    else delta = +1;
-  }
-  encoderRaw_3 += delta;
 }
 
 ////////////////////////////////////////CALCULATE ANGLE////////////////////////////////////////
