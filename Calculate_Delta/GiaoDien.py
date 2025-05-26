@@ -3,7 +3,7 @@ from tkinter import messagebox
 import serial
 import time
 import threading
-import Kinematic  # Assuming Kinematic.py is in the same directory or accessible
+import Kinematic
 import cv2
 from PIL import Image, ImageTk
 
@@ -11,7 +11,7 @@ from PIL import Image, ImageTk
 
 # Setup Serial
 try:
-    ser = serial.Serial('COM5', 9600)
+    ser = serial.Serial('COM6', 9600)
     time.sleep(1)
 except serial.SerialException as e:
     print(f"Error opening serial port: {e}")

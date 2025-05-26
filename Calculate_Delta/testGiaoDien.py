@@ -3,20 +3,22 @@ from tkinter import messagebox
 import serial
 import time
 import threading
-import Kinematic  # Assuming Kinematic.py is in the same directory or accessible
+import Kinematic
+import FunctionButton as bh
 import cv2
 from PIL import Image, ImageTk
+import ObjectDetection
 
+home_set = False
 # from PIL import Image, ImageTk, ImageDraw, ImageFont # ImageDraw, ImageFont removed for simplicity
 
 # Setup Serial
 try:
-    ser = serial.Serial('COM5', 9600)
+    ser = serial.Serial('COM6', 9600)
     time.sleep(1)
 except serial.SerialException as e:
     print(f"Error opening serial port: {e}")
     ser = None
-    # messagebox.showerror("Serial Error", f"Could not open COM5: {e}\nSerial functionality will be disabled.")
 
 # Giao diện chính
 window = tk.Tk()
@@ -50,7 +52,6 @@ def toggle_mode():
             except tk.TclError:
                 pass
 
-
 def send_command_to_serial(command_str):
     if ser and ser.is_open:
         try:
@@ -65,178 +66,46 @@ def send_command_to_serial(command_str):
         print("Serial port not available for sending command.")
         return False
 
+def start_all():
+    global home_set
+    if send_command_to_serial('start\r'):
+        home_set = False  # Reset trạng thái home
+        btn_home.config(state=tk.NORMAL)
+        radio_manual.config(state=tk.DISABLED)
+        radio_auto.config(state=tk.DISABLED)
+        btn_startall.config(state=tk.DISABLED)  # 🔒 Khóa nút START
+        # Khóa toàn bộ nút khác (ngoại trừ START và HOME)
+        for btn in controllable_buttons:
+            if btn != btn_home and btn != btn_startall:
+                btn.config(state=tk.DISABLED)
 
-def send_angles():
-    try:
-        theta1 = float(entry_theta1.get())
-        theta2 = float(entry_theta2.get())
-        theta3 = float(entry_theta3.get())
-
-        if not (0 <= theta1 <= 60):
-            messagebox.showerror("Error", "Theta 1 phải trong khoảng 0 đến 45")
-            return
-        if not (0 <= theta2 <= 60):
-            messagebox.showerror("Error", "Theta 2 phải trong khoảng 0 đến 45")
-            return
-        if not (0 <= theta3 <= 60):
-            messagebox.showerror("Error", "Theta 3 phải trong khoảng 0 đến 45")
-            return
-
-        try:
-            result = Kinematic.forward_kinematic(theta1, theta2, theta3)
-            if result[0] is False:
-                messagebox.showerror("Error", "Không thể tính vị trí. Kiểm tra lại góc đầu vào.")
-                return
-
-            _, x, y, z = result  # Bỏ qua giá trị đầu vì nó là True/False
-
-            # Giới hạn tọa độ (ví dụ)
-            if not (-100 <= x <= 87):
-                messagebox.showerror("Lỗi", f"X={x:.2f} nằm ngoài giới hạn robot")
-                return
-            if not (-80 <= y <= 130):
-                messagebox.showerror("Lỗi", f"Y={y:.2f} nằm ngoài giới hạn robot")
-                return
-            if not (-397 <= z <= -307.38):
-                messagebox.showerror("Lỗi", f"Z={z:.2f} nằm ngoài giới hạn robot")
-                return
-
-            # Nếu vị trí hợp lệ, gửi dữ liệu
-            data = f"{theta1}A{theta2}B{theta3}C\r"
-            print(f"Gửi: {data.strip()}")
-            ser.write(data.encode())
-            # Cập nhật giao diện
-            entry_x.config(state='normal')
-            entry_y.config(state='normal')
-            entry_z.config(state='normal')
-            entry_x.delete(0, tk.END)
-            entry_y.delete(0, tk.END)
-            entry_z.delete(0, tk.END)
-            entry_x.insert(0, f"{x:.2f}")
-            entry_y.insert(0, f"{y:.2f}")
-            entry_z.insert(0, f"{z:.2f}")
-            entry_x.config(state='readonly')
-            entry_y.config(state='readonly')
-            entry_z.config(state='readonly')
-
-        except Exception as e:
-            print(f"Lỗi khi tính forward kinematic: {e}")
-            messagebox.showerror("Lỗi", "Không thể tính vị trí. Kiểm tra lại hàm forward_kinematic.")
-
-    except ValueError:
-        messagebox.showerror("Error", "Vui lòng nhập đúng định dạng là số!")
+def stop_robot():
+    global home_set
+    if send_command_to_serial('s\r'):
+        home_set = False
+        # Cho phép nhấn lại nút START
+        btn_startall.config(state=tk.NORMAL)
+        radio_manual.config(state=tk.DISABLED)
+        radio_auto.config(state=tk.DISABLED)
+        # Chuyển chế độ về manual
+        mode_var.set("manual")
+        toggle_mode()
+        # Vô hiệu hóa các nút điều khiển (sẽ bật lại sau khi home)
+        for btn in controllable_buttons:
+            btn.config(state=tk.DISABLED)
+        btn_home.config(state=tk.DISABLED)
 
 
-def calculate_inv_kinematic():
-    try:
-        x_val = float(entry_x_ik.get())
-        y_val = float(entry_y_ik.get())
-        z_val = float(entry_z_ik.get())
-
-        angles = Kinematic.inverse_kinematic(x_val, y_val, z_val)
-
-        entry_theta1_ik.config(state=tk.NORMAL)
-        entry_theta1_ik.delete(0, tk.END)
-        entry_theta1_ik.insert(0, f"{angles[0]:.2f}")
-        entry_theta1_ik.config(state='readonly')
-
-        entry_theta2_ik.config(state=tk.NORMAL)
-        entry_theta2_ik.delete(0, tk.END)
-        entry_theta2_ik.insert(0, f"{angles[1]:.2f}")
-        entry_theta2_ik.config(state='readonly')
-
-        entry_theta3_ik.config(state=tk.NORMAL)
-        entry_theta3_ik.delete(0, tk.END)
-        entry_theta3_ik.insert(0, f"{angles[2]:.2f}")
-        entry_theta3_ik.config(state='readonly')
-
-    except ValueError:
-        messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho X, Y, Z.")
-    except ValueError as e:
-        messagebox.showerror("Lỗi tính toán", str(e))
-    except Exception as e:
-        messagebox.showerror("Lỗi không xác định", f"Đã xảy ra lỗi: {e}")
-def send_trajectory():
-    try:
-        x0_val = float(entry_x0.get())
-        y0_val = float(entry_y0.get())
-        z0_val = float(entry_z0.get())
-        c0_val = entry_c0.get().strip()
-        xf_val = float(entry_xf.get())
-        yf_val = float(entry_yf.get())
-        zf_val = float(entry_zf.get())
-        tf_val = float(entry_tf.get())
-        if not (-100 <= x0_val <= 87):
-            messagebox.showerror("Lỗi", f"X={x0_val:.2f} nằm ngoài giới hạn robot")
-            return
-        if not (-80 <= y0_val <= 130):
-            messagebox.showerror("Lỗi", f"Y={y0_val:.2f} nằm ngoài giới hạn robot")
-            return
-        if not (-397 <= z0_val <= -307.38):
-            messagebox.showerror("Lỗi", f"Z={z0_val:.2f} nằm ngoài giới hạn robot")
-            return
-        if not (-100 <= xf_val <= 87):
-            messagebox.showerror("Lỗi", f"X={xf_val:.2f} nằm ngoài giới hạn robot")
-            return
-        if not (-80 <= yf_val <= 130):
-            messagebox.showerror("Lỗi", f"Y={yf_val:.2f} nằm ngoài giới hạn robot")
-            return
-        if not (-397 <= zf_val <= -307.38):
-            messagebox.showerror("Lỗi", f"Z={zf_val:.2f} nằm ngoài giới hạn robot")
-            return
-        base_data_segment = f"P0:{x0_val},{y0_val},{z0_val};Pf:{xf_val},{yf_val},{zf_val};T:{tf_val}"
-        data_to_send = ""
-
-        if c0_val:
-            if len(c0_val) > 1: c0_val = c0_val[0]
-            data_to_send = f"{base_data_segment};C:{c0_val}\r"
-        else:
-            data_to_send = f"{base_data_segment}\r"
-
-        if send_command_to_serial(data_to_send):
-            entry_x0.delete(0, tk.END);
-            entry_x0.insert(0, str(xf_val))
-            entry_y0.delete(0, tk.END);
-            entry_y0.insert(0, str(yf_val))
-            entry_z0.delete(0, tk.END);
-            entry_z0.insert(0, str(zf_val))
-            entry_xf.delete(0, tk.END);
-            entry_yf.delete(0, tk.END);
-            entry_zf.delete(0, tk.END)
-            entry_tf.delete(0, tk.END);
-            entry_c0.delete(0, tk.END)
-
-    except ValueError:
-        messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho tọa độ và thời gian.")
-    except Exception as e:
-        messagebox.showerror("Lỗi", f"Đã xảy ra lỗi: {str(e)}")
-
-
-def set_home():
-    if send_command_to_serial('h\r'):
-        try:
-            result = Kinematic.forward_kinematic(0, 0, 0)
-            if result and result[0]:
-                _, x, y, z = result
-                entry_x.config(state='normal');
-                entry_y.config(state='normal');
-                entry_z.config(state='normal')
-                entry_x.delete(0, tk.END);
-                entry_x.insert(0, f"{x:.2f}")
-                entry_y.delete(0, tk.END);
-                entry_y.insert(0, f"{y:.2f}")
-                entry_z.delete(0, tk.END);
-                entry_z.insert(0, f"{z:.2f}")
-                entry_x.config(state='readonly');
-                entry_y.config(state='readonly');
-                entry_z.config(state='readonly')
-        except Exception as e:
-            print(f"Error calculating home position kinematics: {e}")
-
-
-def stop_robot(): send_command_to_serial('s\r')
-
-
+def handle_set_home():
+    success = bh.set_home_handler(send_command_to_serial, entry_x, entry_y, entry_z)
+    if success:
+        global home_set
+        home_set = True
+        # Kích hoạt lại các nút sau khi đã set home
+        for btn in controllable_buttons:
+            btn.config(state=tk.NORMAL)
+        radio_manual.config(state=tk.NORMAL)
+        radio_auto.config(state=tk.NORMAL)
 def move_z_plus(): send_command_to_serial('z\r')
 
 
@@ -254,7 +123,6 @@ def move_x_plus(): send_command_to_serial('x\r')
 
 def move_x_minus(): send_command_to_serial('v\r')
 
-def start_all(): send_command_to_serial('j\r')
 def read_serial():
     while True:
         if ser and ser.is_open and ser.in_waiting > 0:
@@ -277,71 +145,26 @@ def read_serial():
 cap = None
 camera_running = False
 
-def start_camera():
-    global cap, camera_running
-    if not camera_running:
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        camera_running = True
-        update_frame()  # Bắt đầu cập nhật khung hình
-
-def stop_camera_stream():
-    global cap, camera_running
-    camera_running = False
-    if cap is not None:
-        cap.release()
-    label_cam.config(image='', bg="black")  # Xóa ảnh, giữ khung đen
-
-
-def update_frame():
-    global cap, camera_running
-    if camera_running and cap.isOpened():
-        ret, frame = cap.read()
-        if ret:
-            frame = cv2.resize(frame, (720, 370))  # Đảm bảo đúng kích thước
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame)
-            imgtk = ImageTk.PhotoImage(image=img)
-            label_cam.imgtk = imgtk  # Giữ tham chiếu
-            label_cam.config(image=imgtk)
-        label_cam.after(10, update_frame)  # Gọi lại sau 10ms
-
 def emergency_stop(): send_command_to_serial('w\r')
 
-
 magnet_state = 0
-
-
-def toggle_namcham():
-    global magnet_state
-    cmd = 'u\r' if magnet_state == 0 else 'd\r'
-    if send_command_to_serial(cmd):
-        if magnet_state == 0:
-            btn_namcham.config(text="ON MAG", bg="#3bd952");
-            magnet_state = 1
-        else:
-            btn_namcham.config(text="OFF MAG", bg="#eb3b3b");
-            magnet_state = 0
-
-
 conveyor_state = 0
 
+def toggle_namcham_wrapper():
+    global magnet_state # Cần global để sửa giá trị
+    new_state = bh.toggle_namcham_handler(magnet_state, btn_namcham, send_command_to_serial)
+    if new_state is not None: # Nếu handler trả về trạng thái mới (tức là gửi lệnh thành công)
+        magnet_state = new_state
 
-def toggle_conveyor():
+def toggle_conveyor_wrapper():
     global conveyor_state
-    cmd = 'w\r' if conveyor_state == 0 else 'z\r'  # Ensure 'w' and 'z' are correct for conveyor
-    if send_command_to_serial(cmd):
-        if conveyor_state == 0:
-            btn_bangtai.config(text="ON CONV", bg="#3bd952");
-            conveyor_state = 1
-        else:
-            btn_bangtai.config(text="OFF CONV", bg="#eb3b3b");
-            conveyor_state = 0
-
+    new_state = bh.toggle_conveyor_handler(conveyor_state, btn_bangtai, send_command_to_serial)
+    if new_state is not None:
+        conveyor_state = new_state
 
 # --- GUI LAYOUT DEFINITION ---
-
+frame_main_content = tk.Frame(window, bg="#f0f0f5")
+frame_main_content.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 # Section 1: Header Image
 label_image = tk.Label(window, bg="#f0f0f5")
 try:
@@ -389,39 +212,51 @@ frame_text_bottom_left.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 5
 frame_control_buttons_bottom = tk.Frame(bottom_bar_frame, bg="#f0f0f5")
 col1 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
 col1.grid(row=0, column=0, padx=5)
-btn_startall = tk.Button(col1, text="START", command=start_all, font=font_button, bg="#4CAF50", fg="white", width=10);
+btn_startall = tk.Button(col1, text="START", command=start_all,
+                         font=font_button, bg="#4CAF50", fg="white", width=8)
 btn_startall.pack(pady=2, fill=tk.X) # Giảm pady
-btn_stop = tk.Button(col1, text="STOP", command=stop_robot, font=font_button, bg="#f44336", fg="white", width=10);
+btn_stop = tk.Button(col1, text="STOP", command=stop_robot,
+                     font=font_button, bg="#f44336", fg="white", width=8)
 btn_stop.pack(pady=2, fill=tk.X) # Giảm pady
-btn_emg = tk.Button(col1, text="EMG", command=emergency_stop, font=font_button, bg="#B71C1C", fg="white", width=10);
-btn_emg.pack(pady=2, fill=tk.X) # Giảm pady
+# btn_emg = tk.Button(col1, text="EMG", command=lambda: bh.simple_command_handler(send_command_to_serial, 'w\r'),
+#                     font=font_button, bg="#B71C1C", fg="white", width=8)
+# btn_emg.pack(pady=2, fill=tk.X) # Giảm pady
 
 col2 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
 col2.grid(row=0, column=1, padx=5)
-btn_z_plus = tk.Button(col2, text="Z+", command=move_z_plus, font=font_button, bg="#b5b0a7", fg="black", width=8);
+btn_z_plus = tk.Button(col2, text="Z+",
+                       command=lambda: bh.simple_command_handler(send_command_to_serial, 'z\r'),
+                       font=font_button, bg="#b5b0a7", fg="black", width=8)
 btn_z_plus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_z_minus = tk.Button(col2, text="Z-", command=move_z_minus, font=font_button, bg="#b5b0a7", fg="black", width=8);
+btn_z_minus = tk.Button(col2, text="Z-", command=lambda: bh.simple_command_handler(send_command_to_serial, 'c\r'),
+                        font=font_button, bg="#b5b0a7", fg="black", width=8)
 btn_z_minus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_y_plus = tk.Button(col2, text="Y+", command=move_y_plus, font=font_button, bg="#b5b0a7", fg="black", width=8);
+btn_y_plus = tk.Button(col2, text="Y+", command=lambda: bh.simple_command_handler(send_command_to_serial, 'y\r'),
+                       font=font_button, bg="#b5b0a7", fg="black", width=8)
 btn_y_plus.pack(pady=2, fill=tk.X) # Giảm pady
 
 col3 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
 col3.grid(row=0, column=2, padx=5)
-btn_x_minus = tk.Button(col3, text="X-", command=move_x_minus, font=font_button, bg="#b5b0a7", fg="black", width=8);
+btn_x_minus = tk.Button(col3, text="X-", command=lambda: bh.simple_command_handler(send_command_to_serial, 'v\r'),
+                        font=font_button, bg="#b5b0a7", fg="black", width=8)
 btn_x_minus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_x_plus = tk.Button(col3, text="X+", command=move_x_plus, font=font_button, bg="#b5b0a7", fg="black", width=8);
+btn_x_plus = tk.Button(col3, text="X+", command=lambda: bh.simple_command_handler(send_command_to_serial, 'x\r'),
+                       font=font_button, bg="#b5b0a7", fg="black", width=8)
 btn_x_plus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_y_minus = tk.Button(col3, text="Y-", command=move_y_minus, font=font_button, bg="#b5b0a7", fg="black", width=8);
+btn_y_minus = tk.Button(col3, text="Y-", command=lambda: bh.simple_command_handler(send_command_to_serial, 'i\r'),
+                        font=font_button, bg="#b5b0a7", fg="black", width=8)
 btn_y_minus.pack(pady=2, fill=tk.X) # Giảm pady
 
 col4 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
 col4.grid(row=0, column=3, padx=5)
-btn_home = tk.Button(col4, text="SET HOME", command=set_home, font=font_button, bg="#edaa1a", fg="white", width=8);
+btn_home = tk.Button(col4, text="SET HOME",
+                     command=handle_set_home,
+                     font=font_button, bg="#edaa1a", fg="white", width=8)
 btn_home.pack(pady=2, fill=tk.X) # Giảm pady
-btn_namcham = tk.Button(col4, text="OFF MAG", command=toggle_namcham, font=font_button, bg="#eb3b3b", fg="white",
+btn_namcham = tk.Button(col4, text="OFF MAG", command=toggle_namcham_wrapper, font=font_button, bg="#eb3b3b", fg="white",
                         width=8);
 btn_namcham.pack(pady=2, fill=tk.X) # Giảm pady
-btn_bangtai = tk.Button(col4, text="OFF CONV", command=toggle_conveyor, font=font_button, bg="#eb3b3b", fg="white",
+btn_bangtai = tk.Button(col4, text="OFF CONV", command=toggle_conveyor_wrapper, font=font_button, bg="#eb3b3b", fg="white",
                         width=8);
 btn_bangtai.pack(pady=2, fill=tk.X) # Giảm pady
 frame_control_buttons_bottom.pack(side=tk.LEFT, padx=(5, 0))  # Control buttons on left
@@ -438,7 +273,14 @@ label_theta1 = tk.Label(frame_inputs, text="Theta 1 (°):", font=font_label, bg=
 entry_theta1 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta1.grid(row=1, column=1, pady=5)
 label_theta2 = tk.Label(frame_inputs, text="Theta 2 (°):", font=font_label, bg="#f0f0f5"); label_theta2.grid(row=2, column=0, padx=10, pady=5, sticky="w")
 entry_theta2 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta2.grid(row=2, column=1, pady=5)
-btn_run = tk.Button(frame_inputs, text="RUN", command=send_angles, font=font_button, bg="#b5b0a7", fg="black", width=8)
+btn_run = tk.Button(frame_inputs, text="RUN",
+                    command=lambda: bh.send_angles_handler(
+                        entry_theta1, entry_theta2, entry_theta3,
+                        entry_x, entry_y, entry_z,
+                        ser # Truyền đối tượng ser
+                    ),
+                    font=font_button, bg="#b5b0a7", fg="black", width=8)
+
 btn_run.grid(row=2, column=2, padx=5)
 label_theta3 = tk.Label(frame_inputs, text="Theta 3 (°):", font=font_label, bg="#f0f0f5"); label_theta3.grid(row=3, column=0, padx=10, pady=5, sticky="w")
 entry_theta3 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta3.grid(row=3, column=1, pady=5)
@@ -471,7 +313,12 @@ entry_theta3_ik = tk.Entry(frame_z_ik, font=font_entry, width=8, state='readonly
 
 # *** SỬA Ở ĐÂY ***
 # Giảm pady và ipady cho nút CAL IK
-btn_calc_ik = tk.Button(frame_inputs, text="CAL IK", command=calculate_inv_kinematic, font=font_button, bg="#b5b0a7", fg="black", width=12)
+btn_calc_ik = tk.Button(frame_inputs, text="CAL IK",
+                        command=lambda: bh.calculate_inv_kinematic_handler(
+                            entry_x_ik, entry_y_ik, entry_z_ik,
+                            entry_theta1_ik, entry_theta2_ik, entry_theta3_ik
+                        ),
+                        font=font_button, bg="#b5b0a7", fg="black", width=12)
 btn_calc_ik.grid(row=10, column=0, columnspan=2, pady=(5, 7), sticky="w", padx=10, ipady=1) # pady=(top, bottom), giảm ipady
 
 # Trajectory Points
@@ -482,7 +329,7 @@ label_p0 = tk.Label(frame_controls, text="P0: (X0, Y0, Z0) | C0", font=font_labe
 frame_p0 = tk.Frame(frame_controls, bg="#f0f0f5"); frame_p0.pack(pady=2, anchor="w", padx=5) # Giảm pady
 entry_x0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_x0.pack(side=tk.LEFT, padx=3); entry_x0.insert(0, "0.0")
 entry_y0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_y0.pack(side=tk.LEFT, padx=3); entry_y0.insert(0, "0.0")
-entry_z0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_z0.pack(side=tk.LEFT, padx=3); entry_z0.insert(0, "0.0")
+entry_z0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_z0.pack(side=tk.LEFT, padx=3); entry_z0.insert(0, "-307.38")
 entry_c0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_c0.pack(side=tk.LEFT, padx=3)
 label_pf = tk.Label(frame_controls, text="Pf: (Xf, Yf, Zf) | tf", font=font_label, bg="#f0f0f5"); label_pf.pack(anchor="w", padx=5)
 frame_pf = tk.Frame(frame_controls, bg="#f0f0f5"); frame_pf.pack(pady=2, anchor="w", padx=5) # Giảm pady
@@ -491,9 +338,14 @@ entry_yf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry
 entry_zf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_zf.pack(side=tk.LEFT, padx=3)
 entry_tf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_tf.pack(side=tk.LEFT, padx=3)
 
-# *** SỬA Ở ĐÂY ***
-# Giảm pady và ipady cho nút RUN TRAJECTORY
-button_traj = tk.Button(frame_inputs, text="RUN TRAJECTORY", command=send_trajectory, font=font_button, bg="#b5b0a7", fg="black", width=15)
+# Nút RUN TRAJECTORY
+button_traj = tk.Button(frame_inputs, text="RUN TRAJECTORY",
+                        command=lambda: bh.send_trajectory_handler(
+                            entry_x0, entry_y0, entry_z0, entry_c0,
+                            entry_xf, entry_yf, entry_zf, entry_tf,
+                            send_command_to_serial # Truyền hàm
+                        ),
+                        font=font_button, bg="#b5b0a7", fg="black", width=15)
 button_traj.grid(row=10, column=3, columnspan=3, padx=10, pady=(5, 7), sticky="w", ipady=1) # pady=(top, bottom), giảm ipady
 
 frame_inputs.pack(side=tk.LEFT, fill="y", padx=(0,10))
@@ -502,23 +354,50 @@ frame_inputs.pack(side=tk.LEFT, fill="y", padx=(0,10))
 frame_right_zone = tk.Frame(frame_main, bg="#f0f0f5")
 frame_right_zone.pack(side=tk.RIGHT, fill="both", expand=True, padx=10) # expand True để frame này cũng cố gắng chiếm không gian
 
-# Đặt frame_camera vào trong frame_right_zone
-frame_camera = tk.Frame(frame_right_zone, bg="#e0e0e0", bd=2, relief=tk.SUNKEN)
-# Pack frame_camera để nó mở rộng
-frame_camera.pack(pady=(0, 5), fill="both", expand=True)
-label_cam = tk.Label(frame_camera, bg="black")  # Placeholder size
-# Pack label_cam để nó mở rộng và căn giữa
-label_cam.pack(padx=10, pady=(10, 5), anchor="center", fill="both", expand=True)
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+frame_camera_display_area = tk.Frame(frame_right_zone, bg="#d0d0d5", bd=1, relief=tk.SOLID)
+frame_camera_display_area.pack(pady=10, padx=10, fill="both", expand=True)
 
-frame_cam_buttons = tk.Frame(frame_camera, bg="#e0e0e0")
-btn_start_cam = tk.Button(frame_cam_buttons, text="START CAMERA", command=start_camera, font=font_button, bg="#4CAF50",
-                          fg="white", width=16)
-btn_start_cam.pack(side=tk.LEFT, padx=5, pady=5) # Thêm pady cho nút camera
-btn_stop_cam = tk.Button(frame_cam_buttons, text="STOP CAMERA", command=stop_camera_stream, font=font_button,
-                         bg="#f44336", fg="white", width=16)
-btn_stop_cam.pack(side=tk.LEFT, padx=5, pady=5) # Thêm pady cho nút camera
-frame_cam_buttons.pack(side=tk.BOTTOM, anchor="center", padx=10, pady=(5,10)) # pady dưới cùng
 
+label_cam = tk.Label(frame_camera_display_area, bg="black")
+# Đặt kích thước ban đầu cho label_cam để nó chiếm không gian
+# Kích thước này nên khớp với DISPLAY_WIDTH, DISPLAY_HEIGHT trong FunctionButton.py
+label_cam.config(width=bh.DISPLAY_WIDTH//10, height=bh.DISPLAY_HEIGHT//20) # Ước lượng, sẽ được thay bằng ảnh
+label_cam.pack(padx=10, pady=10, anchor="center", fill="both", expand=True)
+
+
+frame_cam_buttons = tk.Frame(frame_camera_display_area, bg="#d0d0d5")
+frame_cam_buttons.pack(side=tk.BOTTOM, pady=5)
+
+# Truyền ser vào start_camera_handler
+btn_start_cam = tk.Button(frame_cam_buttons, text="START CAMERA",
+                          command=lambda: bh.start_camera_handler(label_cam, ser),
+                          font=font_button, bg="#4CAF50", fg="white", width=16)
+btn_start_cam.pack(side=tk.LEFT, padx=5)
+
+btn_stop_cam = tk.Button(frame_cam_buttons, text="STOP CAMERA",
+                         command=lambda: bh.stop_camera_stream_handler(label_cam),
+                         font=font_button, bg="#f44336", fg="white", width=16)
+btn_stop_cam.pack(side=tk.LEFT, padx=5)
+# # Đặt frame_camera vào trong frame_right_zone
+# frame_camera = tk.Frame(frame_right_zone, bg="#e0e0e0", bd=2, relief=tk.SUNKEN)
+# # Pack frame_camera để nó mở rộng
+# frame_camera.pack(pady=(0, 5), fill="both", expand=True)
+# label_cam = tk.Label(frame_camera, bg="black")  # Placeholder size
+# # Pack label_cam để nó mở rộng và căn giữa
+# label_cam.pack(padx=10, pady=(10, 5), anchor="center", fill="both", expand=True)
+#
+# frame_cam_buttons = tk.Frame(frame_camera, bg="#e0e0e0")
+# btn_start_cam = tk.Button(frame_cam_buttons, text="START CAMERA",
+#                           command=lambda: bh.start_camera_handler(label_cam), # Chỉ cần label_cam
+#                           font=font_button, bg="#4CAF50", fg="white", width=16)
+# btn_start_cam.pack(side=tk.LEFT, padx=5, pady=5) # Thêm pady cho nút camera
+# btn_stop_cam = tk.Button(frame_cam_buttons, text="STOP CAMERA",
+#                          command=lambda: bh.stop_camera_stream_handler(label_cam), # Chỉ cần label_cam
+#                          font=font_button, bg="#f44336", fg="white", width=16)
+# btn_stop_cam.pack(side=tk.LEFT, padx=5, pady=5) # Thêm pady cho nút camera
+# frame_cam_buttons.pack(side=tk.BOTTOM, anchor="center", padx=10, pady=(5,10)) # pady dưới cùng
+# \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
 # --- PACKING THE MAIN LAYOUT SECTIONS INTO THE WINDOW ---
 # Order is important: top fixed, bottom fixed, then central expanding
@@ -539,17 +418,31 @@ frame_main.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=20, pady=0)
 controllable_buttons.extend([
     btn_run, button_traj, btn_namcham, btn_bangtai,
     btn_z_plus, btn_z_minus, btn_y_plus, btn_y_minus,
-    btn_x_plus, btn_x_minus, btn_calc_ik # Thêm btn_calc_ik vào đây nếu nó cũng bị disable ở mode auto
+    btn_x_plus, btn_x_minus, btn_calc_ik,
+    btn_home, btn_start_cam, btn_stop_cam
 ])
 toggle_mode()
+for btn in controllable_buttons:
+    btn.config(state=tk.DISABLED)
+radio_manual.config(state=tk.DISABLED)
+radio_auto.config(state=tk.DISABLED)
 
 if ser:
     serial_thread = threading.Thread(target=read_serial, daemon=True)
     serial_thread.start()
 else:
     text_box.insert(tk.END, "Serial port (COM5) not available. Check connection.\n")
+def on_closing():
+    global bh_camera_running # Để truy cập biến từ FunctionButton
+    if bh.bh_camera_running: # Sử dụng bh.bh_camera_running để kiểm tra
+        bh.stop_camera_stream_handler(label_cam) # Dừng camera nếu đang chạy
+    if ser and ser.is_open:
+        print("Closing serial port.")
+        ser.close()
+    window.destroy()
 
+window.protocol("WM_DELETE_WINDOW", on_closing)
 window.mainloop()
 
-if ser and ser.is_open:
-    ser.close()
+# if ser and ser.is_open:
+#     ser.close()
