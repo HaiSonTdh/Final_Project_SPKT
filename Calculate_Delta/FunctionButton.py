@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
-import Kinematic # Giữ lại nếu các hàm khác trong FunctionButton.py có dùng
+import Kinematic
 import cv2
 from PIL import Image, ImageTk
 import ObjectDetection
@@ -16,7 +16,9 @@ DISPLAY_HEIGHT = 370
 # - 'send_command_func' sẽ là hàm send_command_to_serial từ file chính
 # - Các 'entry_...' là các đối tượng widget Entry từ file chính
 # - Các 'btn_...' là các đối tượng widget Button từ file chính (nếu cần thay đổi text/bg của chúng)
+########################33333333333
 
+#####################333333333333333333
 def simple_command_handler(send_command_func, command):
     send_command_func(command)
 def send_angles_handler(entry_theta1, entry_theta2, entry_theta3,
@@ -124,12 +126,12 @@ def send_trajectory_handler(entry_x0, entry_y0, entry_z0, entry_c0,
         tf_val = float(entry_tf.get())
 
         # Kiểm tra giới hạn
-        if not (-100 <= x0_val <= 87): messagebox.showerror("Lỗi", f"X0={x0_val:.2f} nằm ngoài giới hạn robot"); return
-        if not (-80 <= y0_val <= 130): messagebox.showerror("Lỗi", f"Y0={y0_val:.2f} nằm ngoài giới hạn robot"); return
+        if not (-120 <= x0_val <= 87): messagebox.showerror("Lỗi", f"X0={x0_val:.2f} nằm ngoài giới hạn robot"); return
+        if not (-110 <= y0_val <= 130): messagebox.showerror("Lỗi", f"Y0={y0_val:.2f} nằm ngoài giới hạn robot"); return
         if not (-397 <= z0_val <= -307.38): messagebox.showerror("Lỗi",
                                                                  f"Z0={z0_val:.2f} nằm ngoài giới hạn robot"); return
-        if not (-100 <= xf_val <= 87): messagebox.showerror("Lỗi", f"Xf={xf_val:.2f} nằm ngoài giới hạn robot"); return
-        if not (-80 <= yf_val <= 130): messagebox.showerror("Lỗi", f"Yf={yf_val:.2f} nằm ngoài giới hạn robot"); return
+        if not (-120 <= xf_val <= 87): messagebox.showerror("Lỗi", f"Xf={xf_val:.2f} nằm ngoài giới hạn robot"); return
+        if not (-110 <= yf_val <= 130): messagebox.showerror("Lỗi", f"Yf={yf_val:.2f} nằm ngoài giới hạn robot"); return
         if not (-397 <= zf_val <= -307.38): messagebox.showerror("Lỗi",
                                                                  f"Zf={zf_val:.2f} nằm ngoài giới hạn robot"); return
 
@@ -191,31 +193,49 @@ def set_home_handler(send_command_func, entry_x, entry_y, entry_z):
             return False  # Có lỗi xảy ra khi xử lý
     else:
         return False  # Gửi lệnh thất bại
-
-
 def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_object
     global bh_cap, bh_camera_running
 
     if not bh_camera_running:
         try:
-            bh_cap = cv2.VideoCapture(0)  # Hoặc index camera của bạn
+            # THỬ NGAY ĐÂY: Chỉ định API Backend
+            # Lựa chọn 1: Dùng DirectShow (thường nhanh cho USB cams trên Windows)
+            bh_cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+            print("Attempting to open camera with DirectShow (DSHOW)...")
+
+            # Kiểm tra nếu DSHOW không thành công, thử MSMF hoặc mặc định
+            if not bh_cap or not bh_cap.isOpened():
+                print("DSHOW failed or camera not opened. Trying MSMF...")
+                bh_cap = cv2.VideoCapture(0, cv2.CAP_MSMF) # Lựa chọn 2: Media Foundation
+                if not bh_cap or not bh_cap.isOpened():
+                    print("MSMF failed or camera not opened. Trying default API...")
+                    bh_cap = cv2.VideoCapture(0) # Lựa chọn 3: Để OpenCV tự quyết định (như cũ)
 
             if not bh_cap or not bh_cap.isOpened():
-                messagebox.showerror("Camera Error", "Không thể mở camera. Hãy kiểm tra kết nối.")
-                if bh_cap:
+                messagebox.showerror("Camera Error", "Không thể mở camera. Hãy kiểm tra kết nối và thử lại.")
+                if bh_cap: # Đảm bảo release nếu đối tượng được tạo nhưng không isOpened()
                     bh_cap.release()
                 bh_cap = None
+                bh_camera_running = False # Đảm bảo trạng thái đúng
                 return
 
-            # Thiết lập kích thước frame từ camera, nên giống với kích thước mà ObjectDetection.py kỳ vọng
-            # process_frame_for_detection đang làm việc với frame 640x480 (do ROI_Y2 = 480)
+            print(f"Camera opened successfully using API backend: {bh_cap.getBackendName()}")
+
+            # Thiết lập kích thước frame từ camera
+            # Bạn có thể thử đặt các thông số này SAU KHI camera đã mở thành công
+            # và xem có ảnh hưởng đến tốc độ không. Thông thường là không đáng kể.
             bh_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             bh_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            # Lấy lại kích thước thực tế sau khi set, phòng trường hợp camera không hỗ trợ chính xác
+            actual_width = bh_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_height = bh_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            print(f"Requested 640x480, Actual camera resolution: {actual_width}x{actual_height}")
+
 
             bh_camera_running = True
-            ObjectDetection.reset_detection_state()  # Reset trạng thái nhận diện khi bắt đầu
+            ObjectDetection.reset_detection_state()
 
-            update_frame_handler(label_cam_widget, serial_object)  # Truyền serial_object
+            update_frame_handler(label_cam_widget, serial_object)
 
         except Exception as e:
             messagebox.showerror("Camera Error", f"Lỗi khi khởi động camera: {e}")
@@ -223,6 +243,37 @@ def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_objec
             if bh_cap and bh_cap.isOpened():
                 bh_cap.release()
             bh_cap = None
+
+# def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_object
+#     global bh_cap, bh_camera_running
+#
+#     if not bh_camera_running:
+#         try:
+#             bh_cap = cv2.VideoCapture(0)  # Hoặc index camera của bạn
+#
+#             if not bh_cap or not bh_cap.isOpened():
+#                 messagebox.showerror("Camera Error", "Không thể mở camera. Hãy kiểm tra kết nối.")
+#                 if bh_cap:
+#                     bh_cap.release()
+#                 bh_cap = None
+#                 return
+#
+#             # Thiết lập kích thước frame từ camera, nên giống với kích thước mà ObjectDetection.py kỳ vọng
+#             # process_frame_for_detection đang làm việc với frame 640x480 (do ROI_Y2 = 480)
+#             bh_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+#             bh_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+#
+#             bh_camera_running = True
+#             ObjectDetection.reset_detection_state()  # Reset trạng thái nhận diện khi bắt đầu
+#
+#             update_frame_handler(label_cam_widget, serial_object)  # Truyền serial_object
+#
+#         except Exception as e:
+#             messagebox.showerror("Camera Error", f"Lỗi khi khởi động camera: {e}")
+#             bh_camera_running = False
+#             if bh_cap and bh_cap.isOpened():
+#                 bh_cap.release()
+#             bh_cap = None
 
 
 def stop_camera_stream_handler(label_cam_widget):

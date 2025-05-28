@@ -11,7 +11,7 @@ home_set = False
 
 # Setup Serial
 try:
-    ser = serial.Serial('COM6', 9600)
+    ser = serial.Serial('COM9', 9600)
     time.sleep(1)
 except serial.SerialException as e:
     print(f"Error opening serial port: {e}")
@@ -183,63 +183,48 @@ frame_mode_selection.pack(side=tk.LEFT) # Sẽ pack vào frame_mode_selection_co
 
 # Section 4: Bottom Bar (Text Box and Control Buttons) - DEFINE IT BEFORE MAIN CONTENT FOR PACKING ORDER
 bottom_bar_frame = tk.Frame(window, bg="#f0f0f5")
+bottom_bar_frame.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
 
+# ========== TEXT LOG ==========
 frame_text_bottom_right = tk.Frame(bottom_bar_frame, bg="#f0f0f5")
-text_box = tk.Text(frame_text_bottom_right, font=("Courier New", 11), width=60, height=5) # Giữ height=5
+frame_text_bottom_right.grid(row=0, column=1, sticky="nsew", padx=(0, 10))  # Right side
+
+text_box = tk.Text(frame_text_bottom_right, font=("Courier New", 11), width=60, height=5)
 scrollbar = tk.Scrollbar(frame_text_bottom_right, command=text_box.yview)
 text_box.config(yscrollcommand=scrollbar.set)
 text_box.pack(side=tk.LEFT, fill="both", expand=True)
 scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-frame_text_bottom_right.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 5))  # Text box on right
 
+# ========== ROBOT CONTROLS ==========
 frame_control_buttons_bottom = tk.Frame(bottom_bar_frame, bg="#f0f0f5")
-col1 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-col1.grid(row=0, column=0, padx=5)
+frame_control_buttons_bottom.grid(row=0, column=0, sticky="nw", padx=(10, 0))
+
+frame_control_box = tk.LabelFrame(frame_control_buttons_bottom, text="ROBOT CONTROLS",
+                                  font=("Helvetica", 11, "bold"), bg="#f0f0f5", fg="#333", bd=2, relief=tk.GROOVE)
+frame_control_box.pack(padx=5, pady=3)
+
+# COLUMN 1
+col1 = tk.Frame(frame_control_box, bg="#f0f0f5")
+col1.grid(row=0, column=0, padx=(5, 10))
 btn_startall = tk.Button(col1, text="START", command=start_all,
-                         font=font_button, bg="#4CAF50", fg="white", width=8)
-btn_startall.pack(pady=2, fill=tk.X) # Giảm pady
+                         font=font_button, bg="#4CAF50", fg="white", width=6)
+btn_startall.pack(pady=2, fill=tk.X)
 btn_stop = tk.Button(col1, text="STOP", command=stop_robot,
-                     font=font_button, bg="#f44336", fg="white", width=8)
-btn_stop.pack(pady=2, fill=tk.X) # Giảm pady
+                     font=font_button, bg="#f44336", fg="white", width=6)
+btn_stop.pack(pady=2, fill=tk.X)
 
-col2 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-col2.grid(row=0, column=1, padx=5)
-btn_z_plus = tk.Button(col2, text="Z+",
-                       command=lambda: bh.simple_command_handler(send_command_to_serial, 'z\r'),
-                       font=font_button, bg="#b5b0a7", fg="black", width=8)
-btn_z_plus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_z_minus = tk.Button(col2, text="Z-", command=lambda: bh.simple_command_handler(send_command_to_serial, 'c\r'),
-                        font=font_button, bg="#b5b0a7", fg="black", width=8)
-btn_z_minus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_y_plus = tk.Button(col2, text="Y+", command=lambda: bh.simple_command_handler(send_command_to_serial, 'y\r'),
-                       font=font_button, bg="#b5b0a7", fg="black", width=8)
-btn_y_plus.pack(pady=2, fill=tk.X) # Giảm pady
-
-col3 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-col3.grid(row=0, column=2, padx=5)
-btn_x_minus = tk.Button(col3, text="X-", command=lambda: bh.simple_command_handler(send_command_to_serial, 'v\r'),
-                        font=font_button, bg="#b5b0a7", fg="black", width=8)
-btn_x_minus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_x_plus = tk.Button(col3, text="X+", command=lambda: bh.simple_command_handler(send_command_to_serial, 'x\r'),
-                       font=font_button, bg="#b5b0a7", fg="black", width=8)
-btn_x_plus.pack(pady=2, fill=tk.X) # Giảm pady
-btn_y_minus = tk.Button(col3, text="Y-", command=lambda: bh.simple_command_handler(send_command_to_serial, 'i\r'),
-                        font=font_button, bg="#b5b0a7", fg="black", width=8)
-btn_y_minus.pack(pady=2, fill=tk.X) # Giảm pady
-
-col4 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-col4.grid(row=0, column=3, padx=5)
-btn_home = tk.Button(col4, text="SET HOME",
-                     command=handle_set_home,
+# COLUMN 2
+col2 = tk.Frame(frame_control_box, bg="#f0f0f5")
+col2.grid(row=0, column=1, padx=(0, 5))
+btn_home = tk.Button(col2, text="SET HOME", command=handle_set_home,
                      font=font_button, bg="#edaa1a", fg="white", width=8)
-btn_home.pack(pady=2, fill=tk.X) # Giảm pady
-btn_namcham = tk.Button(col4, text="OFF MAG", command=toggle_namcham_wrapper, font=font_button, bg="#eb3b3b", fg="white",
-                        width=8);
-btn_namcham.pack(pady=2, fill=tk.X) # Giảm pady
-btn_bangtai = tk.Button(col4, text="OFF CONV", command=toggle_conveyor_wrapper, font=font_button, bg="#eb3b3b", fg="white",
-                        width=8);
-btn_bangtai.pack(pady=2, fill=tk.X) # Giảm pady
-frame_control_buttons_bottom.pack(side=tk.LEFT, padx=(5, 0))  # Control buttons on left
+btn_home.pack(pady=2, fill=tk.X)
+btn_namcham = tk.Button(col2, text="OFF MAG", command=toggle_namcham_wrapper,
+                        font=font_button, bg="#eb3b3b", fg="white", width=8)
+btn_namcham.pack(pady=2, fill=tk.X)
+btn_bangtai = tk.Button(col2, text="OFF CONV", command=toggle_conveyor_wrapper,
+                        font=font_button, bg="#eb3b3b", fg="white", width=8)
+btn_bangtai.pack(pady=2, fill=tk.X)
 
 # Section 5: Main Content Area (Kinematics, Trajectory, Camera)
 frame_main = tk.Frame(window, bg="#f0f0f5")
@@ -247,87 +232,164 @@ frame_main = tk.Frame(window, bg="#f0f0f5")
 # Main Content -> Left Side (Inputs: Forward/Inverse Kinematics, Trajectory)
 frame_inputs = tk.Frame(frame_main, bg="#f0f0f5")
 # Forward Kinematics
-label_for_kinematic = tk.Label(frame_inputs, text="FORWARD KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
-label_for_kinematic.grid(row=0, column=0, columnspan=3, padx=10, pady=(10, 5), sticky="w")
-label_theta1 = tk.Label(frame_inputs, text="Theta 1 (°):", font=font_label, bg="#f0f0f5"); label_theta1.grid(row=1, column=0, padx=10, pady=5, sticky="w")
-entry_theta1 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta1.grid(row=1, column=1, pady=5)
-label_theta2 = tk.Label(frame_inputs, text="Theta 2 (°):", font=font_label, bg="#f0f0f5"); label_theta2.grid(row=2, column=0, padx=10, pady=5, sticky="w")
-entry_theta2 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta2.grid(row=2, column=1, pady=5)
-btn_run = tk.Button(frame_inputs, text="RUN",
-                    command=lambda: bh.send_angles_handler(
+frame_fk_group = tk.LabelFrame(frame_inputs, text="FORWARD KINEMATIC", font=("Helvetica", 17, "bold"),
+                               bg="#f0f0f5", fg="#333", bd=2, relief=tk.GROOVE)
+frame_fk_group.grid(row=0, column=0, columnspan=3, padx=10, pady=(10, 5), sticky="nsew")
+
+label_theta1 = tk.Label(frame_fk_group, text="Theta 1 (°):", font=font_label, bg="#f0f0f5")
+label_theta1.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+entry_theta1 = tk.Entry(frame_fk_group, font=font_entry, width=10)
+entry_theta1.grid(row=0, column=1, pady=5)
+
+label_theta2 = tk.Label(frame_fk_group, text="Theta 2 (°):", font=font_label, bg="#f0f0f5")
+label_theta2.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+entry_theta2 = tk.Entry(frame_fk_group, font=font_entry, width=10)
+entry_theta2.grid(row=1, column=1, pady=5)
+
+btn_run = tk.Button(frame_fk_group, text="RUN", command=lambda: bh.send_angles_handler(
                         entry_theta1, entry_theta2, entry_theta3,
                         entry_x, entry_y, entry_z,
-                        ser # Truyền đối tượng ser
-                    ),
+                        ser),
                     font=font_button, bg="#b5b0a7", fg="black", width=8)
+btn_run.grid(row=1, column=2, padx=5)
 
-btn_run.grid(row=2, column=2, padx=5)
-label_theta3 = tk.Label(frame_inputs, text="Theta 3 (°):", font=font_label, bg="#f0f0f5"); label_theta3.grid(row=3, column=0, padx=10, pady=5, sticky="w")
-entry_theta3 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta3.grid(row=3, column=1, pady=5)
+label_theta3 = tk.Label(frame_fk_group, text="Theta 3 (°):", font=font_label, bg="#f0f0f5")
+label_theta3.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+entry_theta3 = tk.Entry(frame_fk_group, font=font_entry, width=10)
+entry_theta3.grid(row=2, column=1, pady=5)
+
 # Position Display
-label_result = tk.Label(frame_inputs, text="POSITION (mm):", font=("Helvetica", 17, "bold"), bg="#f0f0f5");
-label_result.grid(row=4, column=0, columnspan=3, padx=10, pady=(15, 5), sticky="w") # Giảm pady top
-frame_xyz = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_xyz.grid(row=5, column=0, columnspan=3, padx=10, pady=5, sticky="w")
-label_x = tk.Label(frame_xyz, text="X:", font=font_label, bg="#f0f0f5"); label_x.pack(side=tk.LEFT, padx=(0, 2))
-entry_x = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly'); entry_x.pack(side=tk.LEFT, padx=(0, 10))
-label_y = tk.Label(frame_xyz, text="Y:", font=font_label, bg="#f0f0f5"); label_y.pack(side=tk.LEFT, padx=(0, 2))
-entry_y = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly'); entry_y.pack(side=tk.LEFT, padx=(0, 10))
-label_z = tk.Label(frame_xyz, text="Z:", font=font_label, bg="#f0f0f5"); label_z.pack(side=tk.LEFT, padx=(0, 2))
-entry_z = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly'); entry_z.pack(side=tk.LEFT, padx=(0, 10))
-# Inverse Kinematics
-label_inv_kinematic = tk.Label(frame_inputs, text="INVERSE KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333"); label_inv_kinematic.grid(row=6, column=0, columnspan=3, padx=10, pady=(15, 5), sticky="w") # Giảm pady top
-frame_x_ik = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_x_ik.grid(row=7, column=0, columnspan=3, padx=10, pady=2, sticky="w") # Giảm pady
-label_x_ik = tk.Label(frame_x_ik, text="X:", font=font_label, bg="#f0f0f5"); label_x_ik.pack(side=tk.LEFT, padx=(0, 2))
-entry_x_ik = tk.Entry(frame_x_ik, font=font_entry, width=8); entry_x_ik.pack(side=tk.LEFT, padx=(0, 10))
-label_theta1_ik = tk.Label(frame_x_ik, text="Theta1:", font=font_label, bg="#f0f0f5"); label_theta1_ik.pack(side=tk.LEFT, padx=(0, 4))
-entry_theta1_ik = tk.Entry(frame_x_ik, font=font_entry, width=8, state='readonly'); entry_theta1_ik.pack(side=tk.LEFT, padx=(0, 10))
-frame_y_ik = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_y_ik.grid(row=8, column=0, columnspan=3, padx=10, pady=2, sticky="w") # Giảm pady
-label_y_ik = tk.Label(frame_y_ik, text="Y:", font=font_label, bg="#f0f0f5"); label_y_ik.pack(side=tk.LEFT, padx=(0, 2))
-entry_y_ik = tk.Entry(frame_y_ik, font=font_entry, width=8); entry_y_ik.pack(side=tk.LEFT, padx=(0, 10))
-label_theta2_ik = tk.Label(frame_y_ik, text="Theta2:", font=font_label, bg="#f0f0f5"); label_theta2_ik.pack(side=tk.LEFT, padx=(0, 4))
-entry_theta2_ik = tk.Entry(frame_y_ik, font=font_entry, width=8, state='readonly'); entry_theta2_ik.pack(side=tk.LEFT, padx=(0, 10))
-frame_z_ik = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_z_ik.grid(row=9, column=0, columnspan=3, padx=10, pady=2, sticky="w") # Giảm pady
-label_z_ik = tk.Label(frame_z_ik, text="Z:", font=font_label, bg="#f0f0f5"); label_z_ik.pack(side=tk.LEFT, padx=(0, 2))
-entry_z_ik = tk.Entry(frame_z_ik, font=font_entry, width=8); entry_z_ik.pack(side=tk.LEFT, padx=(0, 10))
-label_theta3_ik = tk.Label(frame_z_ik, text="Theta3:", font=font_label, bg="#f0f0f5"); label_theta3_ik.pack(side=tk.LEFT, padx=(0, 4))
-entry_theta3_ik = tk.Entry(frame_z_ik, font=font_entry, width=8, state='readonly'); entry_theta3_ik.pack(side=tk.LEFT, padx=(0, 10))
+frame_pos_group = tk.LabelFrame(frame_inputs, text="POSITION (mm)", font=("Helvetica", 17, "bold"),
+                                bg="#f0f0f5", fg="#333", bd=2, relief=tk.GROOVE)
+frame_pos_group.grid(row=1, column=0, columnspan=3, padx=10, pady=(5, 5), sticky="nsew")
 
-# *** SỬA Ở ĐÂY ***
-# Giảm pady và ipady cho nút CAL IK
-btn_calc_ik = tk.Button(frame_inputs, text="CAL IK",
+#################################
+# COUNT DISPLAY
+frame_count_group = tk.LabelFrame(frame_inputs, text="COUNT", font=("Helvetica", 17, "bold"),
+                                  bg="#f0f0f5", fg="#333", bd=2, relief=tk.GROOVE)
+frame_count_group.grid(row=0, column=3, rowspan=2, columnspan=3, padx=(10, 10), pady=(10, 5), sticky="nsew")
+
+# Cấu hình giãn cột cho đẹp hơn
+frame_count_group.grid_columnconfigure(0, weight=1)
+frame_count_group.grid_columnconfigure(1, weight=1)
+
+# R
+label_r_count_text = tk.Label(frame_count_group, text="RED", font=font_label, bg="#f0f0f5", anchor="center")
+label_r_count_text.grid(row=0, column=0, padx=15, pady=10, sticky="ew")
+label_r_count = tk.Label(frame_count_group, text="0", font=font_label,
+                         relief="sunken", bg="white", anchor="center")
+label_r_count.grid(row=0, column=1, padx=15, pady=10, sticky="ew")
+
+# G
+label_g_count_text = tk.Label(frame_count_group, text="GREEN", font=font_label, bg="#f0f0f5", anchor="center")
+label_g_count_text.grid(row=1, column=0, padx=15, pady=10, sticky="ew")
+label_g_count = tk.Label(frame_count_group, text="0", font=font_label,
+                         relief="sunken", bg="white", anchor="center")
+label_g_count.grid(row=1, column=1, padx=15, pady=10, sticky="ew")
+
+# Y
+label_y_count_text = tk.Label(frame_count_group, text="YELLOW", font=font_label, bg="#f0f0f5", anchor="center")
+label_y_count_text.grid(row=2, column=0, padx=15, pady=10, sticky="ew")
+label_y_count = tk.Label(frame_count_group, text="0", font=font_label,
+                         relief="sunken", bg="white", anchor="center")
+label_y_count.grid(row=2, column=1, padx=15, pady=10, sticky="ew")
+
+
+#####################################
+frame_xyz = tk.Frame(frame_pos_group, bg="#f0f0f5")
+frame_xyz.pack(padx=10, pady=5, anchor="w")
+
+label_x = tk.Label(frame_xyz, text="X:", font=font_label, bg="#f0f0f5")
+label_x.pack(side=tk.LEFT, padx=(0, 2))
+entry_x = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly')
+entry_x.pack(side=tk.LEFT, padx=(0, 10))
+
+label_y = tk.Label(frame_xyz, text="Y:", font=font_label, bg="#f0f0f5")
+label_y.pack(side=tk.LEFT, padx=(0, 2))
+entry_y = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly')
+entry_y.pack(side=tk.LEFT, padx=(0, 10))
+
+label_z = tk.Label(frame_xyz, text="Z:", font=font_label, bg="#f0f0f5")
+label_z.pack(side=tk.LEFT, padx=(0, 2))
+entry_z = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly')
+entry_z.pack(side=tk.LEFT, padx=(0, 10))
+
+# Inverse Kinematics
+# INVERSE KINEMATIC SECTION
+frame_ik_group = tk.LabelFrame(frame_inputs, text="INVERSE KINEMATIC",
+                               font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333", bd=2, relief=tk.GROOVE)
+frame_ik_group.grid(row=2, column=0, columnspan=3, padx=10, pady=(10, 5), sticky="nsew")
+
+# Left column: X, Y, Z
+label_x_ik = tk.Label(frame_ik_group, text="X:", font=font_label, bg="#f0f0f5")
+label_x_ik.grid(row=0, column=0, sticky="e", padx=(10, 2), pady=6)
+entry_x_ik = tk.Entry(frame_ik_group, font=font_entry, width=8)
+entry_x_ik.grid(row=0, column=1, sticky="w", padx=(0, 10), pady=6)
+
+label_y_ik = tk.Label(frame_ik_group, text="Y:", font=font_label, bg="#f0f0f5")
+label_y_ik.grid(row=1, column=0, sticky="e", padx=(10, 2), pady=6)
+entry_y_ik = tk.Entry(frame_ik_group, font=font_entry, width=8)
+entry_y_ik.grid(row=1, column=1, sticky="w", padx=(0, 10), pady=6)
+
+label_z_ik = tk.Label(frame_ik_group, text="Z:", font=font_label, bg="#f0f0f5")
+label_z_ik.grid(row=2, column=0, sticky="e", padx=(10, 2), pady=6)
+entry_z_ik = tk.Entry(frame_ik_group, font=font_entry, width=8)
+entry_z_ik.grid(row=2, column=1, sticky="w", padx=(0, 10), pady=6)
+
+# Right column: Theta1, Theta2, Theta3
+label_theta1_ik = tk.Label(frame_ik_group, text="Theta1:", font=font_label, bg="#f0f0f5")
+label_theta1_ik.grid(row=0, column=2, sticky="e", padx=(10, 2), pady=6)
+entry_theta1_ik = tk.Entry(frame_ik_group, font=font_entry, width=8, state='readonly')
+entry_theta1_ik.grid(row=0, column=3, sticky="w", padx=(0, 10), pady=6)
+
+label_theta2_ik = tk.Label(frame_ik_group, text="Theta2:", font=font_label, bg="#f0f0f5")
+label_theta2_ik.grid(row=1, column=2, sticky="e", padx=(10, 2), pady=6)
+entry_theta2_ik = tk.Entry(frame_ik_group, font=font_entry, width=8, state='readonly')
+entry_theta2_ik.grid(row=1, column=3, sticky="w", padx=(0, 10), pady=6)
+
+label_theta3_ik = tk.Label(frame_ik_group, text="Theta3:", font=font_label, bg="#f0f0f5")
+label_theta3_ik.grid(row=2, column=2, sticky="e", padx=(10, 2), pady=6)
+entry_theta3_ik = tk.Entry(frame_ik_group, font=font_entry, width=8, state='readonly')
+entry_theta3_ik.grid(row=2, column=3, sticky="w", padx=(0, 10), pady=6)
+
+# Button CAL IK nằm ở dòng thấp hơn (row=4) để thẳng hàng nút RUN TRAJECTORY
+btn_calc_ik = tk.Button(frame_ik_group, text="CAL IK",
                         command=lambda: bh.calculate_inv_kinematic_handler(
                             entry_x_ik, entry_y_ik, entry_z_ik,
                             entry_theta1_ik, entry_theta2_ik, entry_theta3_ik
                         ),
                         font=font_button, bg="#b5b0a7", fg="black", width=12)
-btn_calc_ik.grid(row=10, column=0, columnspan=2, pady=(5, 7), sticky="w", padx=10, ipady=1) # pady=(top, bottom), giảm ipady
+btn_calc_ik.grid(row=4, column=0, columnspan=4, pady=(12, 6), sticky="w", padx=10)
 
 # Trajectory Points
-label_traj = tk.Label(frame_inputs, text="TRAJECTORY POINTS", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
-label_traj.grid(row=6, column=3, columnspan=3, padx=10, pady=(15, 5), sticky="w") # Giảm pady top
-frame_controls = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_controls.grid(row=7, column=3, columnspan=3, rowspan=3, padx=(10, 5), pady= (0,2), sticky="nw") # Giảm pady bottom
-label_p0 = tk.Label(frame_controls, text="P0: (X0, Y0, Z0) | C0", font=font_label, bg="#f0f0f5"); label_p0.pack(anchor="w", padx=5)
-frame_p0 = tk.Frame(frame_controls, bg="#f0f0f5"); frame_p0.pack(pady=2, anchor="w", padx=5) # Giảm pady
-entry_x0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_x0.pack(side=tk.LEFT, padx=3); entry_x0.insert(0, "0.0")
-entry_y0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_y0.pack(side=tk.LEFT, padx=3); entry_y0.insert(0, "0.0")
-entry_z0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_z0.pack(side=tk.LEFT, padx=3); entry_z0.insert(0, "-307.38")
-entry_c0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_c0.pack(side=tk.LEFT, padx=3)
-label_pf = tk.Label(frame_controls, text="Pf: (Xf, Yf, Zf) | tf", font=font_label, bg="#f0f0f5"); label_pf.pack(anchor="w", padx=5)
-frame_pf = tk.Frame(frame_controls, bg="#f0f0f5"); frame_pf.pack(pady=2, anchor="w", padx=5) # Giảm pady
-entry_xf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_xf.pack(side=tk.LEFT, padx=3)
-entry_yf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_yf.pack(side=tk.LEFT, padx=3)
-entry_zf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_zf.pack(side=tk.LEFT, padx=3)
-entry_tf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_tf.pack(side=tk.LEFT, padx=3)
+frame_traj_group = tk.LabelFrame(frame_inputs, text="TRAJECTORY POINTS",
+                                 font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333", bd=2, relief=tk.GROOVE)
+frame_traj_group.grid(row=2, column=3, columnspan=3, padx=10, pady=(10, 5), sticky="nsew")
 
-# Nút RUN TRAJECTORY
-button_traj = tk.Button(frame_inputs, text="RUN TRAJECTORY",
+label_p0 = tk.Label(frame_traj_group, text="P0: (X0, Y0, Z0) | C0", font=font_label, bg="#f0f0f5")
+label_p0.pack(anchor="w", padx=10, pady=(5, 0))
+frame_p0 = tk.Frame(frame_traj_group, bg="#f0f0f5"); frame_p0.pack(pady=2, anchor="w", padx=10)
+entry_x0 = tk.Entry(frame_p0, font=font_entry, width=7); entry_x0.pack(side=tk.LEFT, padx=3); entry_x0.insert(0, "0.0")
+entry_y0 = tk.Entry(frame_p0, font=font_entry, width=7); entry_y0.pack(side=tk.LEFT, padx=3); entry_y0.insert(0, "0.0")
+entry_z0 = tk.Entry(frame_p0, font=font_entry, width=7); entry_z0.pack(side=tk.LEFT, padx=3); entry_z0.insert(0, "-307.38")
+entry_c0 = tk.Entry(frame_p0, font=font_entry, width=7); entry_c0.pack(side=tk.LEFT, padx=3)
+
+label_pf = tk.Label(frame_traj_group, text="Pf: (Xf, Yf, Zf) | tf", font=font_label, bg="#f0f0f5")
+label_pf.pack(anchor="w", padx=10, pady=(5, 0))
+frame_pf = tk.Frame(frame_traj_group, bg="#f0f0f5"); frame_pf.pack(pady=2, anchor="w", padx=10)
+entry_xf = tk.Entry(frame_pf, font=font_entry, width=7); entry_xf.pack(side=tk.LEFT, padx=3)
+entry_yf = tk.Entry(frame_pf, font=font_entry, width=7); entry_yf.pack(side=tk.LEFT, padx=3)
+entry_zf = tk.Entry(frame_pf, font=font_entry, width=7); entry_zf.pack(side=tk.LEFT, padx=3)
+entry_tf = tk.Entry(frame_pf, font=font_entry, width=7); entry_tf.pack(side=tk.LEFT, padx=3)
+
+button_traj = tk.Button(frame_traj_group, text="RUN TRAJECTORY",
                         command=lambda: bh.send_trajectory_handler(
                             entry_x0, entry_y0, entry_z0, entry_c0,
                             entry_xf, entry_yf, entry_zf, entry_tf,
-                            send_command_to_serial # Truyền hàm
+                            send_command_to_serial
                         ),
                         font=font_button, bg="#b5b0a7", fg="black", width=15)
-button_traj.grid(row=10, column=3, columnspan=3, padx=10, pady=(5, 7), sticky="w", ipady=1) # pady=(top, bottom), giảm ipady
+button_traj.pack(pady=(5, 7), padx=10, anchor="w")
 
 frame_inputs.pack(side=tk.LEFT, fill="y", padx=(0,10))
 
@@ -374,8 +436,7 @@ frame_main.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=20, pady=0)
 # --- FINAL SETUP ---
 controllable_buttons.extend([
     btn_run, button_traj, btn_namcham, btn_bangtai,
-    btn_z_plus, btn_z_minus, btn_y_plus, btn_y_minus,
-    btn_x_plus, btn_x_minus, btn_calc_ik,
+    btn_calc_ik,
     btn_home, btn_start_cam, btn_stop_cam
 ])
 toggle_mode()
