@@ -3,8 +3,7 @@ from tkinter import messagebox
 import Kinematic # Giữ lại nếu các hàm khác trong FunctionButton.py có dùng
 import cv2
 from PIL import Image, ImageTk
-import ObjectDetection # Import module ObjectDetection đã sửa
-import time
+import ObjectDetection
 
 # Biến cục bộ cho module này (dùng cho camera)
 # Đổi tên để tránh trùng với biến ở main nếu có
@@ -14,11 +13,12 @@ bh_camera_running = False
 DISPLAY_WIDTH = 720
 DISPLAY_HEIGHT = 370
 
-# Lưu ý:
 # - 'send_command_func' sẽ là hàm send_command_to_serial từ file chính
 # - Các 'entry_...' là các đối tượng widget Entry từ file chính
 # - Các 'btn_...' là các đối tượng widget Button từ file chính (nếu cần thay đổi text/bg của chúng)
 
+def simple_command_handler(send_command_func, command):
+    send_command_func(command)
 def send_angles_handler(entry_theta1, entry_theta2, entry_theta3,
                         entry_x, entry_y, entry_z, ser_object):  # Truyền ser_object
     try:
@@ -160,38 +160,24 @@ def send_trajectory_handler(entry_x0, entry_y0, entry_z0, entry_c0,
     except Exception as e:
         messagebox.showerror("Lỗi", f"Đã xảy ra lỗi: {str(e)}")
 
-# def set_home_handler(send_command_func, entry_x, entry_y, entry_z):
-#     if send_command_func('h\r'):
-#         try:
-#             result = Kinematic.forward_kinematic(0, 0, 0)
-#             entry_x.config(state='normal'); entry_x.delete(0, tk.END); entry_x.insert(0, f"{result[0]:.2f}"); entry_x.config(state='readonly')
-#             entry_y.config(state='normal'); entry_y.delete(0, tk.END); entry_y.insert(0, f"{result[1]:.2f}"); entry_y.config(state='readonly')
-#             entry_z.config(state='normal'); entry_z.delete(0, tk.END); entry_z.insert(0, f"{result[2]:.2f}"); entry_z.config(state='readonly')
-#
-#             # Re-enable lại các nút điều khiển
-#             import __main__  # Truy cập biến từ file chính
-#             for btn in __main__.controllable_buttons:
-#                 btn.config(state=tk.NORMAL)
-#
-#         except Exception as e:
-#             print(f"Lỗi khi tính toán hoặc cập nhật: {e}")
 def set_home_handler(send_command_func, entry_x, entry_y, entry_z):
     if send_command_func('h\r'):
         try:
             result = Kinematic.forward_kinematic(0, 0, 0)
-            entry_x.config(state='normal')
-            entry_x.delete(0, tk.END)
-            entry_x.insert(0, f"{result[0]:.2f}")
+            _, x, y, z = result
+            entry_x.config(state='normal') # cho phép chỉnh sửa entry
+            entry_x.delete(0, tk.END)      # xóa nội dung hiện tại của entry
+            entry_x.insert(0, f"{x:.2f}")
             entry_x.config(state='readonly')
 
             entry_y.config(state='normal')
             entry_y.delete(0, tk.END)
-            entry_y.insert(0, f"{result[1]:.2f}")
+            entry_y.insert(0, f"{y:.2f}")
             entry_y.config(state='readonly')
 
             entry_z.config(state='normal')
             entry_z.delete(0, tk.END)
-            entry_z.insert(0, f"{result[2]:.2f}")
+            entry_z.insert(0, f"{z:.2f}")
             entry_z.config(state='readonly')
 
             # Re-enable lại các nút điều khiển
@@ -205,10 +191,6 @@ def set_home_handler(send_command_func, entry_x, entry_y, entry_z):
             return False  # Có lỗi xảy ra khi xử lý
     else:
         return False  # Gửi lệnh thất bại
-
-
-def simple_command_handler(send_command_func, command):
-    send_command_func(command)
 
 
 def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_object
@@ -364,7 +346,7 @@ def update_frame_handler(label_cam_widget, serial_object):  # Thêm serial_objec
 
 def toggle_namcham_handler(current_magnet_state, btn_namcham_widget, send_command_func):
     cmd = 'u\r' if current_magnet_state == 0 else 'd\r'
-    if send_command_func(cmd):
+    if send_command_func(cmd): # gửi lệnh qua serial, chỉ tiếp tục code nếu True
         if current_magnet_state == 0:
             btn_namcham_widget.config(text="ON MAG", bg="#3bd952")
             return 1  # Trả về trạng thái mới
@@ -375,10 +357,7 @@ def toggle_namcham_handler(current_magnet_state, btn_namcham_widget, send_comman
 
 
 def toggle_conveyor_handler(current_conveyor_state, btn_bangtai_widget, send_command_func):
-    # Giả sử 'w' là ON và 'z' là OFF cho băng tải, kiểm tra lại mã Arduino/STM32 của bạn
-    # Thông thường, các lệnh điều khiển sẽ khác nhau (ví dụ: 'E' cho Enable, 'D' cho Disable)
-    # cmd = 'E\r' if current_conveyor_state == 0 else 'D\r' # Ví dụ
-    cmd = 'w\r' if current_conveyor_state == 0 else 'z\r'  # Theo code gốc của bạn
+    cmd = 'r\r' if current_conveyor_state == 0 else 'o\r'  # Theo code gốc của bạn
     if send_command_func(cmd):
         if current_conveyor_state == 0:
             btn_bangtai_widget.config(text="ON CONV", bg="#3bd952")

@@ -22,9 +22,9 @@
 #define READ_B_3 (PIND & (1 << PIND0))  // Shift bit 1 sang trái 2 lần → 0b00000100
                                         // dùng phép AND để kiểm tra xem bit số 2 (chân 18) đang ở mức HIGH hay LOW 
                                         // -> đọc nhanh trạng thái chân 18,19 bằng cách truy xuất trực tiếp thanh ghi và kiểm tra bit thứ 2,3
-const int limit_1 = 34;
-const int limit_2 = 36;
-const int limit_3 = 38;
+const int limit_1 = 49;
+const int limit_2 = 51;
+const int limit_3 = 53;
 const int namcham = 40;
 
 volatile long encoderPosition_1 = 0;
@@ -60,8 +60,8 @@ unsigned long startTime_1,startTime_2,startTime_3;
 unsigned long endTime_1,endTime_2,endTime_3;
 unsigned long lastPrintTime = 0;
 
-unsigned long delay_run_spd = 3000;
-unsigned long delay_home_spd = 4000;
+unsigned long delay_run_spd = 4000;
+unsigned long delay_home_spd = 5000;
 unsigned long pulperrev = 200;
 
 volatile int lastDir_1_encoder = 1;  // 1 = thuận, -1 = nghịch
