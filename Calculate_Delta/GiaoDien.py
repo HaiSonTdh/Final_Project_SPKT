@@ -33,19 +33,32 @@ mode_var = tk.StringVar(value="manual")
 
 def toggle_mode():
     mode = mode_var.get()
-    new_state = tk.DISABLED if mode == "auto" else tk.NORMAL
+    # new_state = tk.DISABLED if mode == "auto" else tk.NORMAL
+    new_state_manual_buttons = tk.DISABLED  # Mặc định là vô hiệu hóa nút manual khi ở auto
 
     if mode == "manual":
         radio_manual.config(relief=tk.SUNKEN, bg="#f4f716") #SUNKEN: nhấn xuống
         radio_auto.config(relief=tk.RAISED, bg="#f0f0f5") # nút auto có trạng thái nổi lên
+        new_state_manual_buttons = tk.NORMAL  # Kích hoạt nút manual
+        # Nếu đang ở manual, có thể bạn muốn dừng camera nếu nó đang chạy từ chế độ auto
+        bh.stop_camera_stream_handler(label_cam) # Tùy chọn: dừng camera khi chuyển về manual
+
     else:  # auto mode
         radio_auto.config(relief=tk.SUNKEN, bg="#f4f716")
         radio_manual.config(relief=tk.RAISED, bg="#f0f0f5")
+        radio_manual.config(state=tk.DISABLED)
+        radio_auto.config(state=tk.DISABLED)
+        btn_namcham.config(bg="#eb3b3b")
+        btn_bangtai.config(bg="#eb3b3b")
+        # Truyền hàm gửi serial, widget label camera, và đối tượng serial
+        bh.run_auto_mode_sequence(send_command_to_serial, label_cam, ser)
 
     for btn in controllable_buttons: # duyệt qua từng nút trong danh sách controllable_buttons
         if btn:
+        # if btn in [btn_run, button_traj, btn_calc_ik, btn_namcham, btn_bangtai]:
             try:
-                btn.config(state=new_state)
+                # btn.config(state=new_state)
+                btn.config(state=new_state_manual_buttons)
             except tk.TclError:
                 pass
 
@@ -85,6 +98,11 @@ def stop_robot():
         btn_startall.config(state=tk.NORMAL)
         radio_manual.config(state=tk.DISABLED)
         radio_auto.config(state=tk.DISABLED)
+        btn_start_cam.config(state=tk.DISABLED)
+        btn_stop_cam.config(state=tk.DISABLED)
+        bh.stop_camera_stream_handler(label_cam)
+        btn_namcham.config(bg="#eb3b3b")
+        btn_bangtai.config(bg="#eb3b3b")
         # Chuyển chế độ về manual
         mode_var.set("manual")
         toggle_mode()
@@ -103,6 +121,8 @@ def handle_set_home():
             btn.config(state=tk.NORMAL)
         radio_manual.config(state=tk.NORMAL)
         radio_auto.config(state=tk.NORMAL)
+        btn_start_cam.config(state=tk.NORMAL)
+        btn_stop_cam.config(state=tk.NORMAL)
 
 def read_serial():
     while True:
@@ -436,14 +456,17 @@ frame_main.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=20, pady=0)
 # --- FINAL SETUP ---
 controllable_buttons.extend([
     btn_run, button_traj, btn_namcham, btn_bangtai,
-    btn_calc_ik,
-    btn_home, btn_start_cam, btn_stop_cam
+    btn_calc_ik, btn_home
+    # ,btn_start_cam, btn_stop_cam
 ])
 toggle_mode()
+# Trạng thái ban đầu khi mới mở giao diện
 for btn in controllable_buttons:
     btn.config(state=tk.DISABLED)
 radio_manual.config(state=tk.DISABLED)
 radio_auto.config(state=tk.DISABLED)
+btn_start_cam.config(state=tk.DISABLED)
+btn_stop_cam.config(state=tk.DISABLED)
 
 if ser:
     serial_thread = threading.Thread(target=read_serial, daemon=True)

@@ -4,6 +4,8 @@ import Kinematic
 import cv2
 from PIL import Image, ImageTk
 import ObjectDetection
+import time
+import threading
 
 # Biến cục bộ cho module này (dùng cho camera)
 # Đổi tên để tránh trùng với biến ở main nếu có
@@ -16,9 +18,7 @@ DISPLAY_HEIGHT = 370
 # - 'send_command_func' sẽ là hàm send_command_to_serial từ file chính
 # - Các 'entry_...' là các đối tượng widget Entry từ file chính
 # - Các 'btn_...' là các đối tượng widget Button từ file chính (nếu cần thay đổi text/bg của chúng)
-########################33333333333
 
-#####################333333333333333333
 def simple_command_handler(send_command_func, command):
     send_command_func(command)
 def send_angles_handler(entry_theta1, entry_theta2, entry_theta3,
@@ -57,9 +57,12 @@ def send_angles_handler(entry_theta1, entry_theta2, entry_theta3,
                 return
 
             data = f"{theta1}A{theta2}B{theta3}C\r"
-            print(f"Gửi: {data.strip()}")
+            # print(f"Gửi: {data.strip()}")
             if ser_object and ser_object.is_open:
-                ser_object.write(data.encode())
+                # ser_object.write(data.encode())
+                import __main__  # Cách để truy cập hàm từ GiaoDien.py nếu không truyền trực tiếp
+                if not __main__.send_command_to_serial(data):  # Sử dụng hàm từ GiaoDien.py
+                    return  # Không cập nhật UI nếu gửi thất bại
             else:
                 messagebox.showwarning("Serial Port Error", "Serial port not available.")
                 return
@@ -119,7 +122,7 @@ def send_trajectory_handler(entry_x0, entry_y0, entry_z0, entry_c0,
         x0_val = float(entry_x0.get())
         y0_val = float(entry_y0.get())
         z0_val = float(entry_z0.get())
-        c0_val = entry_c0.get().strip().upper()
+        c0_val = entry_c0.get().strip().upper() # strip để loại bỏ khoảng trắng thừa ở đầu hoặc cuối chuỗi
         xf_val = float(entry_xf.get())
         yf_val = float(entry_yf.get())
         zf_val = float(entry_zf.get())
@@ -139,7 +142,7 @@ def send_trajectory_handler(entry_x0, entry_y0, entry_z0, entry_c0,
         data_to_send = ""
 
         if c0_val and c0_val not in ['R', 'G', 'Y']:
-            messagebox.showerror("Lỗi", f"Nhập C0 là R,G hoặc Y")
+            messagebox.showerror("Lỗi", f"Nhập C0 là R(red), G(green) hoặc Y(yellow)")
             return
         else:
             data_to_send = f"{base_data_segment}\r"
@@ -183,9 +186,9 @@ def set_home_handler(send_command_func, entry_x, entry_y, entry_z):
             entry_z.config(state='readonly')
 
             # Re-enable lại các nút điều khiển
-            import __main__  # Truy cập biến từ file chính
-            for btn in __main__.controllable_buttons:
-                btn.config(state=tk.NORMAL)
+            # import __main__  # Truy cập biến từ file chính
+            # for btn in __main__.controllable_buttons:
+            #     btn.config(state=tk.NORMAL)
 
             return True  #  Thành công
         except Exception as e:
@@ -200,16 +203,16 @@ def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_objec
         try:
             # THỬ NGAY ĐÂY: Chỉ định API Backend
             # Lựa chọn 1: Dùng DirectShow (thường nhanh cho USB cams trên Windows)
-            bh_cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+            bh_cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
             print("Attempting to open camera with DirectShow (DSHOW)...")
 
             # Kiểm tra nếu DSHOW không thành công, thử MSMF hoặc mặc định
             if not bh_cap or not bh_cap.isOpened():
                 print("DSHOW failed or camera not opened. Trying MSMF...")
-                bh_cap = cv2.VideoCapture(0, cv2.CAP_MSMF) # Lựa chọn 2: Media Foundation
+                bh_cap = cv2.VideoCapture(1, cv2.CAP_MSMF) # Lựa chọn 2: Media Foundation
                 if not bh_cap or not bh_cap.isOpened():
                     print("MSMF failed or camera not opened. Trying default API...")
-                    bh_cap = cv2.VideoCapture(0) # Lựa chọn 3: Để OpenCV tự quyết định (như cũ)
+                    bh_cap = cv2.VideoCapture(1) # Lựa chọn 3: Để OpenCV tự quyết định (như cũ)
 
             if not bh_cap or not bh_cap.isOpened():
                 messagebox.showerror("Camera Error", "Không thể mở camera. Hãy kiểm tra kết nối và thử lại.")
@@ -243,38 +246,6 @@ def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_objec
             if bh_cap and bh_cap.isOpened():
                 bh_cap.release()
             bh_cap = None
-
-# def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_object
-#     global bh_cap, bh_camera_running
-#
-#     if not bh_camera_running:
-#         try:
-#             bh_cap = cv2.VideoCapture(0)  # Hoặc index camera của bạn
-#
-#             if not bh_cap or not bh_cap.isOpened():
-#                 messagebox.showerror("Camera Error", "Không thể mở camera. Hãy kiểm tra kết nối.")
-#                 if bh_cap:
-#                     bh_cap.release()
-#                 bh_cap = None
-#                 return
-#
-#             # Thiết lập kích thước frame từ camera, nên giống với kích thước mà ObjectDetection.py kỳ vọng
-#             # process_frame_for_detection đang làm việc với frame 640x480 (do ROI_Y2 = 480)
-#             bh_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-#             bh_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-#
-#             bh_camera_running = True
-#             ObjectDetection.reset_detection_state()  # Reset trạng thái nhận diện khi bắt đầu
-#
-#             update_frame_handler(label_cam_widget, serial_object)  # Truyền serial_object
-#
-#         except Exception as e:
-#             messagebox.showerror("Camera Error", f"Lỗi khi khởi động camera: {e}")
-#             bh_camera_running = False
-#             if bh_cap and bh_cap.isOpened():
-#                 bh_cap.release()
-#             bh_cap = None
-
 
 def stop_camera_stream_handler(label_cam_widget):
     global bh_cap, bh_camera_running
@@ -332,68 +303,6 @@ def update_frame_handler(label_cam_widget, serial_object):  # Thêm serial_objec
             if label_cam_widget.winfo_exists() and bh_camera_running:  # Vẫn thử lại nếu camera chưa bị stop
                 label_cam_widget.after(10, lambda: update_frame_handler(label_cam_widget, serial_object))
 
-# def start_camera_handler(label_cam_widget):
-#     global bh_cap, bh_camera_running # Sử dụng các biến của module button_handlers
-#
-#     if not bh_camera_running:
-#         try:
-#             # Giống Hàm 2: chỉ thử mở camera 0
-#             bh_cap = cv2.VideoCapture(0)
-#
-#             # Kiểm tra xem camera có thực sự mở được không (điều này Hàm 2 không làm, nhưng rất nên có)
-#             if not bh_cap or not bh_cap.isOpened():
-#                 messagebox.showerror("Camera Error", "Không thể mở camera (index 0). Hãy kiểm tra kết nối.")
-#                 if bh_cap: # Nếu bh_cap được tạo nhưng không mở được, thử release
-#                     bh_cap.release()
-#                 bh_cap = None
-#                 bh_camera_running = False # Đảm bảo trạng thái là false
-#                 return # Thoát nếu không mở được camera
-#
-#             # Tiếp tục với logic cài đặt và chạy, giống Hàm 2 (và Hàm 1 gốc)
-#             bh_cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-#             bh_cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-#             bh_camera_running = True
-#
-#             # Gọi hàm update_frame_handler (đã được điều chỉnh để phù hợp với button_handlers.py)
-#             update_frame_handler(label_cam_widget)
-#
-#         except Exception as e:
-#             # Bắt các lỗi khác có thể xảy ra trong quá trình set thuộc tính hoặc lỗi không mong muốn
-#             messagebox.showerror("Camera Error", f"Lỗi khi khởi động camera: {e}")
-#             bh_camera_running = False
-#             if bh_cap and bh_cap.isOpened(): # Chỉ release nếu nó đã được mở
-#                 bh_cap.release()
-#             bh_cap = None # Đặt lại để đảm bảo an toàn
-#
-# def stop_camera_stream_handler(label_cam_widget):
-#     global bh_cap, bh_camera_running
-#     bh_camera_running = False
-#     if bh_cap is not None:
-#         bh_cap.release()
-#         bh_cap = None
-#     # Xóa ảnh khỏi label, có thể đặt lại kích thước nếu muốn
-#     black_img = Image.new('RGB', (720, 370), color='black')
-#     imgtk = ImageTk.PhotoImage(image=black_img)
-#     label_cam_widget.imgtk = imgtk
-#     label_cam_widget.config(image=imgtk)
-#
-#
-# def update_frame_handler(label_cam_widget):
-#     global bh_cap, bh_camera_running
-#     if bh_camera_running and bh_cap and bh_cap.isOpened():
-#         ret, frame = bh_cap.read()
-#         if ret:
-#             frame_resized = cv2.resize(frame, (720, 370))
-#             frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
-#             img = Image.fromarray(frame_rgb)
-#             imgtk = ImageTk.PhotoImage(image=img)
-#             label_cam_widget.imgtk = imgtk
-#             label_cam_widget.config(image=imgtk)
-#         # Sử dụng label_cam_widget.after thay vì window.after
-#         label_cam_widget.after(10, lambda: update_frame_handler(label_cam_widget))
-#     elif not bh_camera_running and label_cam_widget.winfo_exists():  # Nếu camera đã dừng, dừng cập nhật
-#         stop_camera_stream_handler(label_cam_widget)
-
 
 def toggle_namcham_handler(current_magnet_state, btn_namcham_widget, send_command_func):
     cmd = 'u\r' if current_magnet_state == 0 else 'd\r'
@@ -417,3 +326,45 @@ def toggle_conveyor_handler(current_conveyor_state, btn_bangtai_widget, send_com
             btn_bangtai_widget.config(text="OFF CONV", bg="#eb3b3b")
             return 0
     return None
+# --- HÀM MỚI CHO CHẾ ĐỘ AUTO ---
+def _auto_mode_sequence_thread(send_command_func, label_cam_widget, serial_object):
+    """
+    Hàm mục tiêu cho luồng (thread) để thực hiện chuỗi lệnh auto.
+    Không gọi trực tiếp hàm này từ GUI, hãy gọi run_auto_mode_sequence.
+    """
+    print("Chế độ AUTO: Bắt đầu chuỗi lệnh.")
+    if not send_command_func("r\r"):
+        print("Chế độ AUTO: Gửi 'o' thất bại. Dừng chuỗi.")
+        return
+    time.sleep(2)
+
+    if not send_command_func("d\r"):
+        print("Chế độ AUTO: Gửi 'd' thất bại. Dừng chuỗi.")
+        return
+    time.sleep(2)
+
+    if not send_command_func("h\r"):
+        print("Chế độ AUTO: Gửi 'h' thất bại. Dừng chuỗi.")
+        return
+    time.sleep(1.5) # Có thể thêm một khoảng nghỉ nhỏ trước khi bật camera
+
+    print("Chế độ AUTO: Hoàn tất gửi lệnh. Bật camera.")
+    # Gọi hàm start_camera_handler.
+    # start_camera_handler đã xử lý việc chạy trong luồng riêng cho việc cập nhật frame
+    # nên chúng ta có thể gọi trực tiếp từ đây.
+    # Tuy nhiên, để đảm bảo start_camera_handler không bị gọi chồng chéo nếu user click nhanh,
+    # chúng ta nên kiểm tra bh_camera_running trước.
+    # start_camera_handler đã có kiểm tra này rồi.
+    start_camera_handler(label_cam_widget, serial_object)
+
+
+def run_auto_mode_sequence(send_command_func, label_cam_widget, serial_object):
+    """
+    Hàm này sẽ được gọi từ GiaoDien.py khi người dùng chọn chế độ AUTO.
+    Nó sẽ tạo một luồng mới để chạy chuỗi lệnh _auto_mode_sequence_thread.
+    """
+    # Tạo một luồng mới để chạy chuỗi lệnh, tránh làm treo GUI
+    auto_thread = threading.Thread(target=_auto_mode_sequence_thread,
+                                   args=(send_command_func, label_cam_widget, serial_object),
+                                   daemon=True) # daemon=True để luồng tự tắt khi chương trình chính tắt
+    auto_thread.start()
