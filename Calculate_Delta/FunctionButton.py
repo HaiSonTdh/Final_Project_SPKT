@@ -7,6 +7,12 @@ import ObjectDetection
 import time
 import threading
 
+# Biến toàn cục để lưu trữ các label đếm (nếu bạn cần cập nhật chúng từ nơi khác)
+# Cấu trúc: count_labels_widgets[row_idx][col_idx]
+# row_idx: 0=red, 1=green, 2=yellow
+# col_idx: 0=rec, 1=tri, 2=sqr
+count_labels_widgets = []
+
 # Biến cục bộ cho module này (dùng cho camera)
 # Đổi tên để tránh trùng với biến ở main nếu có
 bh_cap = None
@@ -209,10 +215,10 @@ def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_objec
             # Kiểm tra nếu DSHOW không thành công, thử MSMF hoặc mặc định
             if not bh_cap or not bh_cap.isOpened():
                 print("DSHOW failed or camera not opened. Trying MSMF...")
-                bh_cap = cv2.VideoCapture(1, cv2.CAP_MSMF) # Lựa chọn 2: Media Foundation
+                bh_cap = cv2.VideoCapture(0, cv2.CAP_MSMF) # Lựa chọn 2: Media Foundation
                 if not bh_cap or not bh_cap.isOpened():
                     print("MSMF failed or camera not opened. Trying default API...")
-                    bh_cap = cv2.VideoCapture(1) # Lựa chọn 3: Để OpenCV tự quyết định (như cũ)
+                    bh_cap = cv2.VideoCapture(0) # Lựa chọn 3: Để OpenCV tự quyết định (như cũ)
 
             if not bh_cap or not bh_cap.isOpened():
                 messagebox.showerror("Camera Error", "Không thể mở camera. Hãy kiểm tra kết nối và thử lại.")
@@ -275,6 +281,7 @@ def update_frame_handler(label_cam_widget, serial_object):  # Thêm serial_objec
         if ret:
             # Gọi hàm xử lý từ ObjectDetection
             # Hàm này sẽ trả về frame đã được vẽ vời các thông tin nhận diện
+
             processed_frame = ObjectDetection.process_frame_for_detection(frame_from_cam, serial_object)
 
             if processed_frame is not None:
@@ -308,10 +315,10 @@ def toggle_namcham_handler(current_magnet_state, btn_namcham_widget, send_comman
     cmd = 'u\r' if current_magnet_state == 0 else 'd\r'
     if send_command_func(cmd): # gửi lệnh qua serial, chỉ tiếp tục code nếu True
         if current_magnet_state == 0:
-            btn_namcham_widget.config(text="ON MAG", bg="#3bd952")
+            btn_namcham_widget.config(text="OFF MAG", bg="#3bd952")
             return 1  # Trả về trạng thái mới
         else:
-            btn_namcham_widget.config(text="OFF MAG", bg="#eb3b3b")
+            btn_namcham_widget.config(text="ON MAG", bg="#eb3b3b")
             return 0  # Trả về trạng thái mới
     return None  # Trả về None nếu gửi lệnh thất bại, để không thay đổi trạng thái
 
@@ -320,10 +327,10 @@ def toggle_conveyor_handler(current_conveyor_state, btn_bangtai_widget, send_com
     cmd = 'r\r' if current_conveyor_state == 0 else 'o\r'  # Theo code gốc của bạn
     if send_command_func(cmd):
         if current_conveyor_state == 0:
-            btn_bangtai_widget.config(text="ON CONV", bg="#3bd952")
+            btn_bangtai_widget.config(text="OFF CONV", bg="#3bd952")
             return 1
         else:
-            btn_bangtai_widget.config(text="OFF CONV", bg="#eb3b3b")
+            btn_bangtai_widget.config(text="ON CONV", bg="#eb3b3b")
             return 0
     return None
 # --- HÀM MỚI CHO CHẾ ĐỘ AUTO ---
