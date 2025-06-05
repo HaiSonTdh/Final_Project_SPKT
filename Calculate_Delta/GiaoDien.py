@@ -170,13 +170,13 @@ def update_count_display():
     mapping = {
         'red_star': ('star', 'red'),
         'green_star': ('star', 'grn'),
-        'yold_star': ('star', 'yel'),
+        'yellow_star': ('star', 'yel'),
         'red_triangle': ('tri', 'red'),
         'green_triangle': ('tri', 'grn'),
-        'yold_triangle': ('tri', 'yel'),
+        'yellow_triangle': ('tri', 'yel'),
         'red_square': ('sqr', 'red'),
         'green_square': ('sqr', 'grn'),
-        'yold_square': ('sqr', 'yel'),
+        'yellow_square': ('sqr', 'yel'),
     }
 
     for mem_key, (row_key, col_key) in mapping.items():
@@ -202,21 +202,64 @@ def update_count_display():
 frame_main_content = tk.Frame(window, bg="#f0f0f5")
 frame_main_content.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 # Section 1: Header Image
-label_image = tk.Label(window, bg="#f0f0f5")
+# label_image = tk.Label(window, bg="#f0f0f5")
+# try:
+#     image_path = "Banner0.png"
+#     try:
+#         image = Image.open(image_path)
+#     except FileNotFoundError:
+#         print(f"Warning: Image file '{image_path}' not found. Using placeholder.")
+#         image = Image.new('RGB', (850, 100), color='skyblue')  # Simpler placeholder
+#     image = image.resize((1000, 100))
+#     photo = ImageTk.PhotoImage(image)
+#     label_image.config(image=photo)
+#     label_image.image = photo
+# except Exception as e:
+#     print(f"Lỗi khi tải ảnh banner: {e}")
+#     # label_image might remain empty or you can set a text placeholder
+# Section 1: Header with two images and center text
+frame_banner = tk.Frame(window, bg="#f0f0f5", height=100)
+frame_banner.pack(fill=tk.X, padx=10, pady=(10, 0))
+
+# Left image
+left_image_label = tk.Label(frame_banner, bg="#f0f0f5")
 try:
-    image_path = "Banner0.png"
-    try:
-        image = Image.open(image_path)
-    except FileNotFoundError:
-        print(f"Warning: Image file '{image_path}' not found. Using placeholder.")
-        image = Image.new('RGB', (850, 100), color='skyblue')  # Simpler placeholder
-    image = image.resize((1000, 100))
-    photo = ImageTk.PhotoImage(image)
-    label_image.config(image=photo)
-    label_image.image = photo
-except Exception as e:
-    print(f"Lỗi khi tải ảnh banner: {e}")
-    # label_image might remain empty or you can set a text placeholder
+    left_image_path = "university.png"
+    left_image = Image.open(left_image_path).resize((130, 130))
+except FileNotFoundError:
+    left_image = Image.new('RGB', (100, 100), color='lightblue')
+left_photo = ImageTk.PhotoImage(left_image)
+left_image_label.config(image=left_photo)
+left_image_label.image = left_photo
+left_image_label.pack(side=tk.LEFT, padx=(0, 10))
+
+# Center title
+title_frame = tk.Frame(frame_banner, bg="#f0f0f5")
+title_frame.pack(side=tk.LEFT, expand=True)
+
+# First line: Main title
+banner_title = tk.Label(title_frame, text="TRƯỜNG ĐẠI HỌC SƯ PHẠM KỸ THUẬT THÀNH PHỐ HỒ CHÍ MINH", font=font_title, bg="#f0f0f5", fg="#333")
+banner_title.pack()
+
+# Second line: Subtitle
+banner_subtitle = tk.Label(title_frame, text="KHOA ĐIỆN - ĐIỆN TỬ", font=font_title, bg="#f0f0f5", fg="#333")
+banner_subtitle.pack()
+
+# Third line: GUI title (with spacing)
+banner_gui_title = tk.Label(title_frame, text="DELTA ROBOT", font=("Arial", 22, "bold"), bg="#f0f0f5", fg="#0055aa")
+banner_gui_title.pack(pady=(20, 0))  # cách dòng trên 20 pixel
+# Right image
+right_image_label = tk.Label(frame_banner, bg="#f0f0f5")
+try:
+    right_image_path = "faculty.jpg"
+    right_image = Image.open(right_image_path).resize((130, 130))
+except FileNotFoundError:
+    right_image = Image.new('RGB', (100, 100), color='lightgreen')
+right_photo = ImageTk.PhotoImage(right_image)
+right_image_label.config(image=right_photo)
+right_image_label.image = right_photo
+right_image_label.pack(side=tk.RIGHT, padx=(10, 0))
+
 
 # Section 2: Title
 title = tk.Label(window, text="ROBOT DELTA", font=font_title, bg="#f0f0f5", fg="#333")
@@ -325,7 +368,7 @@ frame_pos_group = tk.LabelFrame(frame_inputs, text="POSITION (mm)", font=("Helve
 frame_pos_group.grid(row=1, column=0, columnspan=3, padx=10, pady=(5, 5), sticky="nsew")
 
 # Count Display
-frame_count_group = tk.LabelFrame(frame_inputs, text="COUNT", font=("Helvetica", 17, "bold"),
+frame_count_group = tk.LabelFrame(frame_inputs, text="PRODUCTS", font=("Helvetica", 17, "bold"),
                                   bg="#f0f0f5", fg="#333", bd=2, relief=tk.GROOVE)
 frame_count_group.grid(row=0, column=3, rowspan=2, columnspan=3, padx=(10, 10), pady=(10, 5), sticky="nsew")
 
@@ -488,8 +531,10 @@ btn_stop_cam.pack(side=tk.LEFT, padx=5)
 
 # --- PACKING THE MAIN LAYOUT SECTIONS INTO THE WINDOW ---
 # Order is important: top fixed, bottom fixed, then central expanding
-label_image.pack(side=tk.TOP, fill=tk.X, pady=(10, 5))
-title.pack(side=tk.TOP, pady=(5,10)) # Giảm pady trên của title
+######################
+# label_image.pack(side=tk.TOP, fill=tk.X, pady=(10, 5))
+# title.pack(side=tk.TOP, pady=(5,10)) # Giảm pady trên của title
+######################
 
 # Giảm pady cho frame_mode_selection_container
 frame_mode_selection_container.pack(side=tk.TOP, fill=tk.X, padx=20, pady=(0, 5))

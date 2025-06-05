@@ -1,5 +1,6 @@
 void SetHome()
 {
+  if (emergencyStop) return;
   digitalWrite(DIR_PIN_1,0);
   digitalWrite(DIR_PIN_2,0);
   digitalWrite(DIR_PIN_3,0);
@@ -8,14 +9,10 @@ void SetHome()
   bool yHomed = false; // Cờ để kiểm tra trục Y đã về gốc
   bool zHomed = false; // Cờ để kiểm tra trục Z đã về gốc
 
-  // Serial.print("Limit 1: "); Serial.println(digitalRead(limit_1));
-  // Serial.print("Limit 2: "); Serial.println(digitalRead(limit_2));
-  // Serial.print("Limit 3: "); Serial.println(digitalRead(limit_3));
-  while (!xHomed || !yHomed || !zHomed)
-  // while (!xHomed|| !zHomed)
+  while (!xHomed || !yHomed || !zHomed && !emergencyStop) 
   {
     // Set home cho motor 1
-    if (!xHomed)
+    if (!xHomed && !emergencyStop)
     {
       if (digitalRead(limit_1) == LOW)
       {
@@ -26,19 +23,18 @@ void SetHome()
           delay(50);
           SetPosition_1();
           xHomed = true;
-          Serial.println("Truc X da ve home.");
         }
       }
       else
       {
         digitalWrite(PUL_PIN_1, HIGH);
-        delayMicroseconds(delay_home_spd); //80
+        delayMicroseconds(delay_home_spd);
         digitalWrite(PUL_PIN_1, LOW);
         delayMicroseconds(delay_home_spd);
       }
     }
-    // // Set home cho motor 2
-    if (!yHomed)
+    // Set home cho motor 2
+    if (!yHomed && !emergencyStop)
     {
       if (digitalRead(limit_2) == LOW)
       {
@@ -49,7 +45,6 @@ void SetHome()
           delay(50);
           SetPosition_2();
           yHomed = true;
-          Serial.println("Truc Y da ve home.");
         }
       }
       else
@@ -61,7 +56,7 @@ void SetHome()
       }
     }
     // Set home cho motor 3
-    if (!zHomed)
+    if (!zHomed && !emergencyStop)
     {
       if (digitalRead(limit_3) == LOW)
       {
@@ -72,7 +67,6 @@ void SetHome()
           delay(50);
           SetPosition_3();
           zHomed = true;
-          Serial.println("Truc Z da ve home.");
         }
       }
       else
@@ -84,9 +78,20 @@ void SetHome()
       }
     }
   }
-  Degree_1(8.5, 0);
-  Degree_2(12, 0);
-  Degree_3(7, 0);
+  if (emergencyStop) {
+    StopAllMotors();
+    return;
+  }
+
+  // Đặt lại delay_run_spd_x về giá trị mặc định cho các chuyển động độc lập (hoặc giá trị mong muốn sau homing)
+  // Điều này đảm bảo các lệnh Degree_x sau đó sẽ dùng tốc độ này, không bị ảnh hưởng bởi update_delay_run_spd
+  delay_run_spd_1 = 5000; // Hoặc một giá trị khác bạn muốn cho tốc độ di chuyển sau homing
+  delay_run_spd_2 = 5000;
+  delay_run_spd_3 = 5000;
+  
+  Degree_1new(8.2, 0);  // ~0.148 rad
+  Degree_2new(9.8, 0);   // ~0.209 rad
+  Degree_3new(7.3, 0);    // ~0.122 rad
 
   // Cho phép loop() chạy tiếp để điều khiển motor
   motorRunning_1 = true;
@@ -100,8 +105,14 @@ void SetHome()
     RunMotor_2();
     RunMotor_3();
   }
-  delay(400);
+  delay(800);
   SetPosition_1();
   SetPosition_2();
   SetPosition_3();
+  
+  currentPosition[0] = 0;
+  currentPosition[1] = 0;
+  currentPosition[2] = -307.38; // Độ cao home
+
+  emergencyStop = false;
 }

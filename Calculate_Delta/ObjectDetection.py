@@ -30,9 +30,9 @@ real_distance_bottom_to_trig = 68  # mm
 COLOR_RANGES = {
     'red': ([0, 70, 50], [10, 255, 255], [160, 70, 50], [180, 255, 255]),
     'green': ([40, 70, 50], [80, 255, 255]),
-    'yold': ([30, 0, 60], [110, 50, 255], [140, 4, 50], [160, 6, 50]),
+    'yellow': ([25, 90, 95], [35, 250, 255]),
 }
-
+# KHI ĐẾN TRIGGER LINE THÌ NHẬN DIỆN VUÔNG XANH THÀNH TRÒN XANH
 # Biến trạng thái cho việc nhận diện
 _tracking_active = False
 _start_time = 0 # THỜI GIAN XUẤT HIỆN LẦN ĐẦU
@@ -46,6 +46,7 @@ _predicted_time_to_top = 0
 _calibration_data_list = []
 _command_cooldown_duration = 3.0  # Thời gian cooldown sau khi gửi lệnh (giây)
 _current_object_id = None
+_current_shape_detected = None
 
 # Ngưỡng diện tích tối thiểu cho contour được coi là hợp lệ
 MIN_CONTOUR_AREA = 150
@@ -54,13 +55,13 @@ MIN_CONTOUR_AREA = 150
 _objects_memory = {
     'red_star': {'count': 0},
     'green_star': {'count': 0},
-    'yold_star': {'count': 0},
+    'yellow_star': {'count': 0},
     'red_square': {'count': 0},
     'green_square': {'count': 0},
-    'yold_square': {'count': 0},
+    'yellow_square': {'count': 0},
     'red_triangle': {'count': 0},
     'green_triangle': {'count': 0},
-    'yold_triangle': {'count': 0}
+    'yellow_triangle': {'count': 0}
 }
 def set_operation_mode(is_auto):
     """
@@ -117,6 +118,7 @@ def process_frame_for_detection(input_frame, ser_instance):
     global _command_sent, _predicted_time_to_top, _calibration_data_list
     global _predicted_time_robot_reach
     global _current_object_id
+    global _current_shape_detected
     _predicted_time_robot_reach = 0
 
     if input_frame is None:
@@ -136,7 +138,6 @@ def process_frame_for_detection(input_frame, ser_instance):
     # --- Logic để tránh đơ camera sau khi gửi lệnh ---
     # Nếu đã gửi lệnh VÀ chưa đủ thời gian cooldown, thì chỉ vẽ khung và bỏ qua phần xử lý nhận diện vật thể
     if _command_sent and (time.time() - _last_command_time) < _command_cooldown_duration:
-        # print("Skipping detection during cooldown.")
         return frame  # Trả về frame đã vẽ đường mà không thực hiện detect object
 
     # Nếu đã đủ thời gian cooldown, reset trạng thái để sẵn sàng nhận diện vật thể tiếp theo
@@ -165,19 +166,34 @@ def process_frame_for_detection(input_frame, ser_instance):
     best_color_name = None
 
     # Tìm contour lớn nhất cho mỗi màu và chọn contour lớn nhất trong số đó
-    for color_name, ranges in COLOR_RANGES.items():
-        if color_name == 'red' or color_name == 'yold':
-            lower1, upper1, lower2, upper2 = ranges
+    for color_name, hsv_limits_tuple in COLOR_RANGES.items(): # Đổi tên biến 'ranges' cho rõ ràng
+        mask = None # Khởi tạo mask
+
+        if len(hsv_limits_tuple) == 4:
+            # Trường hợp có 2 dải màu (ví dụ: red)
+            # hsv_limits_tuple là (lower1, upper1, lower2, upper2)
+            lower1, upper1, lower2, upper2 = hsv_limits_tuple
+            # mask1 tạo mặt nạ nhị phân cho dải màu thứ nhất
             mask1 = cv2.inRange(hsv, np.array(lower1), np.array(upper1))
             mask2 = cv2.inRange(hsv, np.array(lower2), np.array(upper2))
-            mask = cv2.bitwise_or(mask1, mask2) # NỐI 2 MASK
-            # RED VÀ YOLD NẰM QUA RANH GIỚI 0 độ/180 độ HSV nên phải dùng 2 khoảng màu
-        else:  # green
-            lower, upper = ranges
+            mask = cv2.bitwise_or(mask1, mask2)
+            # Bất kỳ pixel nào thuộc về dải màu thứ nhất HOẶC dải màu thứ hai
+            # đều sẽ được bao gồm trong mặt nạ cuối cùng.
+            # Các màu như 'red' có thể nằm ở hai đầu của thang đo Hue (0/180)
+        elif len(hsv_limits_tuple) == 2:
+            # Trường hợp có 1 dải màu (ví dụ: green, yellow)
+            # hsv_limits_tuple là (lower, upper)
+            lower, upper = hsv_limits_tuple
             mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+        else:
+            print(f"Cảnh báo: Số lượng khoảng HSV không hợp lệ cho màu {color_name}. Bỏ qua màu này.")
+            continue # Bỏ qua màu này nếu cấu trúc không mong đợi
+
+        if mask is None: # Kiểm tra lại nếu mask chưa được tạo
+            continue
 
         # LOẠI BỎ NHIỄU
-        kernel = np.ones((5, 5), np.uint8)
+        kernel = np.ones((5, 5), np.uint8) # kernel này là hình vuông
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.medianBlur(mask, 5)
@@ -194,6 +210,7 @@ def process_frame_for_detection(input_frame, ser_instance):
             if best_contour is None or cv2.contourArea(current_largest_contour) > cv2.contourArea(best_contour):
                 best_contour = current_largest_contour
                 best_color_name = color_name
+                _object_color_detected = 'Y' if best_color_name == 'yellow' else best_color_name[0].upper()
 
     # --- Chỉ xử lý contour lớn nhất được tìm thấy trong toàn bộ khung hình ---
     if best_contour is not None:
@@ -220,24 +237,29 @@ def process_frame_for_detection(input_frame, ser_instance):
         cv2.rectangle(frame, (ROI_X1 + x, ROI_Y1 + y), (ROI_X1 + x + w, ROI_Y1 + y + h), bgr_color_tuple, 2)
 
         M = cv2.moments(cnt)
+        # hàm này tính moment hình học, trả về dictionary: m00,m10,m01
         # MOMENT CẤP 0: DIỆN TÍCH, CẤP 1: TRỌNG TÂM, CẤP 2: XÁC ĐỊNH VỊ TRÍ VÀ HƯỚNG ĐỐI TƯỢNG
         if M["m00"] != 0:
-            cx_roi = int(M["m10"] / M["m00"])
+            cx_roi = int(M["m10"] / M["m00"]) # m00:diện tích đối tượng
             cy_roi = int(M["m01"] / M["m00"])
+            # m10 và m01 là các giá trị tính theo x hoặc y để khi thực hiện phép toán
+            # ta rút gọn được cường độ các điểm ảnh do đều bằng nhau
             # TÍNH TÂM CONTOUR THỰC TẾ
             cx_frame = ROI_X1 + cx_roi
             cy_frame = ROI_Y1 + cy_roi
 
             # Bỏ qua nếu tâm lệch (vẫn giữ logic này cho contour lớn nhất)
-            bbox_cx_roi = x + w // 2
+            bbox_cx_roi = x + w // 2 # tọa độ tâm hình chữ nhật bao quanh contour
             bbox_cy_roi = y + h // 2
             distance = np.sqrt((cx_roi - bbox_cx_roi) ** 2 + (cy_roi - bbox_cy_roi) ** 2)
+            # distance: khoảng cách giữa tâm contour thực sự và tâm bounding box
             max_allowed_distance = 0.4 * min(w, h)
             if distance > max_allowed_distance:
                 # Nếu contour lớn nhất vẫn bị lệch tâm, không xử lý tiếp
                 return frame
 
             cv2.circle(frame, (cx_frame, cy_frame), 6, (0, 0, 0), -1)
+            # Vẽ tâm vật thể lên GUI
 
             # --- Hiệu chỉnh méo và chuyển đổi tọa độ ---
             distorted_point = np.array([[[cx_frame, cy_frame]]], dtype=np.float32)
@@ -249,12 +271,13 @@ def process_frame_for_detection(input_frame, ser_instance):
             cx_intr, cy_intr = CAMERA_MATRIX[0, 2], CAMERA_MATRIX[1, 2]
             real_x = (undistorted_coords[0] - cx_intr) * Z_CONST / fx
             real_y = (undistorted_coords[1] - cy_intr) * Z_CONST / fy
-            # DÙNG CÔNG THƯ CAMERA PINHOLE ĐỂ CHUYỂN PIXEL QUA mm
+            # tọa độ thật của vật thể trong hệ tọa độ camera
+            # DÙNG CÔNG THỨC CAMERA PINHOLE ĐỂ CHUYỂN PIXEL QUA mm
             real_y_top_trig = (Y_TRIGGER - Y_TOP) * Z_CONST / fy
             P_CA = np.array([[real_x], [real_y], [Z_CONST], [1]])
             T_0C = np.array([
                 [0, -1, 0, -160],
-                [-1, 0, 0, -26],
+                [-1, 0, 0, -27],
                 [0, 0, -1, -132],
                 [0, 0, 0, 1]
             ]) # MA TRẬN CHUYỂN ĐỔI CAMERA QUA ROBOT
@@ -267,79 +290,59 @@ def process_frame_for_detection(input_frame, ser_instance):
 
             # --- Xử lý logic tracking và tính toán vận tốc ---
             current_y_on_frame = cy_roi + ROI_Y1
-
+##############################
             # NHẬN DIỆN HÌNH DẠNG TRƯỚC KHI XỬ LÝ TRIGGER LINE
-            # epsilon = 0.02 * cv2.arcLength(cnt, True)
-            # approx = cv2.approxPolyDP(cnt, epsilon, True)
-            # shape = "Unknown"
-            #
-            # # Tính hull và độ lồi lõm
-            # hull = cv2.convexHull(cnt)
-            # area_cnt = cv2.contourArea(cnt)
-            # area_hull = cv2.contourArea(hull)
-            # solidity = float(area_cnt) / area_hull if area_hull != 0 else 0
-            #
-            # if len(approx) == 3:
-            #     shape = "Triangle"
-            # elif len(approx) == 4:
-            #     aspect_ratio = float(w) / h
-            #     shape = "Square" if 0.9 <= aspect_ratio <= 1.1 else "Rectangle"
-            # elif 8 <= len(approx) <= 12 and solidity < 0.85:
-            #     shape = "Star"
-            # elif len(approx) > 10 and solidity >= 0.85:
-            #     shape = "Circle"
-            ###############################
-            # Thay đổi epsilon để phù hợp với các hình dạng khác nhau
-            epsilon = 0.04 * cv2.arcLength(cnt, True)  # Tăng từ 0.02 lên 0.04 để linh hoạt hơn
+            epsilon = 0.02 * cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, epsilon, True)
-            shape = "Unknown"
+            # Đây là thuật toán xấp xỉ đường đa giác Douglas-Peucker.
+            # Nó làm giảm số lượng đỉnh của một đường cong hoặc đa giác trong khi vẫn giữ được hình dạng tổng thể
+            # shape = "Unknown"
 
-            # Tính hull và độ lồi lõm
+            vertices = len(approx) # số đỉnh của đa giác
             hull = cv2.convexHull(cnt)
-            area_cnt = cv2.contourArea(cnt)
-            area_hull = cv2.contourArea(hull)
-            solidity = float(area_cnt) / area_hull if area_hull != 0 else 0
-            convexity_defects = cv2.convexityDefects(cnt, cv2.convexHull(cnt, returnPoints=False))
+            area = cv2.contourArea(cnt)
+            hull_area = cv2.contourArea(hull)
+            solidity = float(area) / hull_area if hull_area > 0 else 0
 
-            # Thêm điều kiện kiểm tra số cạnh và góc
-            if len(approx) == 3:
+            (x, y, w, h) = cv2.boundingRect(cnt)
+            aspect_ratio = float(w) / h if h != 0 else 1.0
+            # tỉ lệ giữa chiều rộng và cao của bounding box
+
+            # Tính độ lệch cạnh nếu là 4 đỉnh
+            side_ratio = 0 # hình vuông = 1, hcn < 1
+            if vertices == 4:
+                sides = []
+                for i in range(4):
+                    pt1 = approx[i][0]
+                    pt2 = approx[(i + 1) % 4][0]
+                    length = np.linalg.norm(pt1 - pt2)
+                    sides.append(length)
+                max_len = max(sides)
+                min_len = min(sides)
+                side_ratio = min_len / max_len if max_len != 0 else 0
+
+            # ------------------------------
+            # DEBUG: In thông số để kiểm tra
+            print(
+                f"Vertices: {vertices}, Solidity: {solidity:.2f}, Aspect Ratio: {aspect_ratio:.2f}, Side Ratio: {side_ratio:.2f}, Area: {area:.1f}")
+            # ------------------------------
+
+            # đơn vị area là pixel vuông
+            # ƯU TIÊN HÌNH CÓ 4 CẠNH TRƯỚC
+            if vertices == 4 and 0.85 <= aspect_ratio <= 1.15 and side_ratio > 0.85 and solidity > 0.9:
+                shape = "Square"
+            elif vertices == 4 and solidity > 0.9:
+                shape = "Rectangle"
+            elif 6 <= vertices <= 9 and 0.9 <= aspect_ratio <= 1.1 and solidity > 0.93 and area > 1500:
+                shape = "Square"
+            elif 10 <= vertices <= 16 and solidity < 0.85:
+                shape = "Star"
+            elif vertices > 16 and solidity > 0.90:
+                shape = "Circle"
+            elif 3 <= vertices <= 6 and solidity > 0.85 and area > 300:
                 shape = "Triangle"
-            elif len(approx) == 4:
-                # Kiểm tra góc giữa các cạnh để phân biệt hình vuông/chữ nhật
-                (x, y, w, h) = cv2.boundingRect(approx)
-                aspect_ratio = float(w) / h
-
-                # Tính toán góc giữa các cạnh
-                vectors = []
-                for i in range(len(approx)):
-                    vec = approx[(i + 1) % 4][0] - approx[i][0]
-                    vectors.append(vec)
-
-                angles = []
-                for i in range(len(vectors)):
-                    v1 = vectors[i]
-                    v2 = vectors[(i + 1) % 4]
-                    angle = np.arccos(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
-                    angles.append(np.degrees(angle))
-
-                # Kiểm tra nếu các góc gần 90 độ
-                is_rectangle = all(80 < angle < 100 for angle in angles)
-
-                if is_rectangle and (0.85 <= aspect_ratio <= 1.15):  # Mở rộng ngưỡng aspect ratio
-                    shape = "Square"
-                elif is_rectangle:
-                    shape = "Rectangle"
-                else:
-                    shape = "Quadrilateral"
-            elif len(approx) >= 5:
-                # Kiểm tra hình sao bằng convexity defects
-                if convexity_defects is not None and len(convexity_defects) > 3 and solidity < 0.85:
-                    shape = "Star"
-                elif solidity >= 0.9:
-                    shape = "Circle"
-                else:
-                    shape = "Polygon"
-            ################################
+            else:
+                shape = "Unknown"
 
             # Hiển thị thông tin hình dạng và màu sắc
             cv2.putText(frame, f"{color_name} {shape}", (text_x_base, ROI_Y1 + y - 10),
@@ -352,10 +355,10 @@ def process_frame_for_detection(input_frame, ser_instance):
                 _start_time = time.time()
                 _start_y = current_y_on_frame
                 _current_object_info = (cx_frame, cy_frame)
-                if color_name == 'yold':
-                    _object_color_detected = 'Y'
-                else:
-                    _object_color_detected = color_name[0].upper()
+                # if color_name == 'yellow':
+                #     _object_color_detected = 'Y'
+                # else:
+                #     _object_color_detected = color_name[0].upper()
                 _current_object_id = str(uuid.uuid4())
 
             # Tính toán vận tốc khi vật đang di chuyển
@@ -373,7 +376,7 @@ def process_frame_for_detection(input_frame, ser_instance):
                         _max_velocity = current_velocity
                         distance_to_top_mm = (Y_TRIGGER - Y_TOP) * Z_CONST / fy
                         _predicted_time_to_top = distance_to_top_mm / _max_velocity if _max_velocity > 0 else 0
-                        _predicted_time_robot_reach = _predicted_time_to_top - 0.56
+                        _predicted_time_robot_reach = _predicted_time_to_top - 0.4
 
             # XỬ LÝ TRIGGER LINE (GỘP 2 PHẦN IF LẠI THÀNH 1)
             calib_x_top = calib_x_top + 25

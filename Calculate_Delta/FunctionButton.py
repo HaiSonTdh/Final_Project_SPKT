@@ -144,14 +144,16 @@ def send_trajectory_handler(entry_x0, entry_y0, entry_z0, entry_c0,
         if not (-397 <= zf_val <= -307.38): messagebox.showerror("Lỗi",
                                                                  f"Zf={zf_val:.2f} nằm ngoài giới hạn robot"); return
 
-        base_data_segment = f"P0:{x0_val},{y0_val},{z0_val};Pf:{xf_val},{yf_val},{zf_val};T:{tf_val}"
+        # base_data_segment = f"P0:{x0_val},{y0_val},{z0_val};Pf:{xf_val},{yf_val},{zf_val};T:{tf_val}"
         data_to_send = ""
 
-        if c0_val and c0_val not in ['R', 'G', 'Y']:
-            messagebox.showerror("Lỗi", f"Nhập C0 là R(red), G(green) hoặc Y(yellow)")
-            return
+        if c0_val == "":
+            data_to_send = f"P0:{x0_val},{y0_val},{z0_val};Pf:{xf_val},{yf_val},{zf_val};T:{tf_val}"
+        elif c0_val in ['R', 'G', 'Y']:
+            data_to_send = f"Next:{xf_val},{yf_val},{zf_val};T:{tf_val};C:{c0_val}\r"
         else:
-            data_to_send = f"{base_data_segment}\r"
+            messagebox.showerror("Lỗi", "Giá trị C0 không hợp lệ. Vui lòng nhập R (Red), G (Green) hoặc Y (Yellow).")
+            return
 
         if send_command_func(data_to_send):
             entry_x0.delete(0, tk.END);
@@ -215,10 +217,10 @@ def start_camera_handler(label_cam_widget, serial_object):  # Thêm serial_objec
             # Kiểm tra nếu DSHOW không thành công, thử MSMF hoặc mặc định
             if not bh_cap or not bh_cap.isOpened():
                 print("DSHOW failed or camera not opened. Trying MSMF...")
-                bh_cap = cv2.VideoCapture(0, cv2.CAP_MSMF) # Lựa chọn 2: Media Foundation
+                bh_cap = cv2.VideoCapture(1, cv2.CAP_MSMF) # Lựa chọn 2: Media Foundation
                 if not bh_cap or not bh_cap.isOpened():
                     print("MSMF failed or camera not opened. Trying default API...")
-                    bh_cap = cv2.VideoCapture(0) # Lựa chọn 3: Để OpenCV tự quyết định (như cũ)
+                    bh_cap = cv2.VideoCapture(1) # Lựa chọn 3: Để OpenCV tự quyết định (như cũ)
 
             if not bh_cap or not bh_cap.isOpened():
                 messagebox.showerror("Camera Error", "Không thể mở camera. Hãy kiểm tra kết nối và thử lại.")
