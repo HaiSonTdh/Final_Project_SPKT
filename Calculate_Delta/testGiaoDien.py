@@ -1,578 +1,510 @@
-# import tkinter as tk
-# from tkinter import messagebox
-# import serial
-# import time
-# import threading
-# import Kinematic
-# import cv2
-# from PIL import Image, ImageTk
-#
-# # from PIL import Image, ImageTk, ImageDraw, ImageFont # ImageDraw, ImageFont removed for simplicity
-#
-# # Setup Serial
-# try:
-#     ser = serial.Serial('COM6', 9600)
-#     time.sleep(1)
-# except serial.SerialException as e:
-#     print(f"Error opening serial port: {e}")
-#     ser = None
-#     # messagebox.showerror("Serial Error", f"Could not open COM5: {e}\nSerial functionality will be disabled.")
-#
-# # Giao diện chính
-# window = tk.Tk()
-# window.title("GUI")
-# window.configure(bg="#f0f0f5")
-# # window.geometry("1200x850") # Bạn có thể thử đặt kích thước cửa sổ cố định nếu cần
-#
-# font_title = ("Arial", 20, "bold")
-# font_label = ("Arial", 12)
-# font_entry = ("Arial", 12)
-# font_button = ("Arial", 12, "bold")
-#
-# controllable_buttons = []
-# mode_var = tk.StringVar(value="manual")
-#
-# def toggle_mode():
-#     mode = mode_var.get()
-#     new_state = tk.DISABLED if mode == "auto" else tk.NORMAL
-#
-#     if mode == "manual":
-#         radio_manual.config(relief=tk.SUNKEN, bg="#f4f716")
-#         radio_auto.config(relief=tk.RAISED, bg="#f0f0f5")
-#     else:  # auto mode
-#         radio_auto.config(relief=tk.SUNKEN, bg="#f4f716")
-#         radio_manual.config(relief=tk.RAISED, bg="#f0f0f5")
-#
-#     for btn in controllable_buttons:
-#         if btn:
-#             try:
-#                 btn.config(state=new_state)
-#             except tk.TclError:
-#                 pass
-#
-#
-# def send_command_to_serial(command_str):
-#     if ser and ser.is_open:
-#         try:
-#             ser.write(command_str.encode())
-#             print(f"Gửi: {command_str.strip()}")
-#             return True
-#         except serial.SerialException as e:
-#             messagebox.showerror("Serial Error", f"Error writing to serial port: {e}")
-#             return False
-#     else:
-#         # messagebox.showwarning("Serial Port Error", "Serial port not available.") # Can be noisy
-#         print("Serial port not available for sending command.")
-#         return False
-#
-#
-# def send_angles():
-#     try:
-#         theta1 = float(entry_theta1.get())
-#         theta2 = float(entry_theta2.get())
-#         theta3 = float(entry_theta3.get())
-#
-#         if not (0 <= theta1 <= 60):
-#             messagebox.showerror("Error", "Theta 1 phải trong khoảng 0 đến 45")
-#             return
-#         if not (0 <= theta2 <= 60):
-#             messagebox.showerror("Error", "Theta 2 phải trong khoảng 0 đến 45")
-#             return
-#         if not (0 <= theta3 <= 60):
-#             messagebox.showerror("Error", "Theta 3 phải trong khoảng 0 đến 45")
-#             return
-#
-#         try:
-#             result = Kinematic.forward_kinematic(theta1, theta2, theta3)
-#             if result[0] is False:
-#                 messagebox.showerror("Error", "Không thể tính vị trí. Kiểm tra lại góc đầu vào.")
-#                 return
-#
-#             _, x, y, z = result  # Bỏ qua giá trị đầu vì nó là True/False
-#
-#             # Giới hạn tọa độ (ví dụ)
-#             if not (-100 <= x <= 87):
-#                 messagebox.showerror("Lỗi", f"X={x:.2f} nằm ngoài giới hạn robot")
-#                 return
-#             if not (-80 <= y <= 130):
-#                 messagebox.showerror("Lỗi", f"Y={y:.2f} nằm ngoài giới hạn robot")
-#                 return
-#             if not (-397 <= z <= -307.38):
-#                 messagebox.showerror("Lỗi", f"Z={z:.2f} nằm ngoài giới hạn robot")
-#                 return
-#
-#             # Nếu vị trí hợp lệ, gửi dữ liệu
-#             data = f"{theta1}A{theta2}B{theta3}C\r"
-#             print(f"Gửi: {data.strip()}")
-#             ser.write(data.encode())
-#             # Cập nhật giao diện
-#             entry_x.config(state='normal')
-#             entry_y.config(state='normal')
-#             entry_z.config(state='normal')
-#             entry_x.delete(0, tk.END)
-#             entry_y.delete(0, tk.END)
-#             entry_z.delete(0, tk.END)
-#             entry_x.insert(0, f"{x:.2f}")
-#             entry_y.insert(0, f"{y:.2f}")
-#             entry_z.insert(0, f"{z:.2f}")
-#             entry_x.config(state='readonly')
-#             entry_y.config(state='readonly')
-#             entry_z.config(state='readonly')
-#
-#         except Exception as e:
-#             print(f"Lỗi khi tính forward kinematic: {e}")
-#             messagebox.showerror("Lỗi", "Không thể tính vị trí. Kiểm tra lại hàm forward_kinematic.")
-#
-#     except ValueError:
-#         messagebox.showerror("Error", "Vui lòng nhập đúng định dạng là số!")
-#
-#
-# def calculate_inv_kinematic():
-#     try:
-#         x_val = float(entry_x_ik.get())
-#         y_val = float(entry_y_ik.get())
-#         z_val = float(entry_z_ik.get())
-#
-#         angles = Kinematic.inverse_kinematic(x_val, y_val, z_val)
-#
-#         entry_theta1_ik.config(state=tk.NORMAL)
-#         entry_theta1_ik.delete(0, tk.END)
-#         entry_theta1_ik.insert(0, f"{angles[0]:.2f}")
-#         entry_theta1_ik.config(state='readonly')
-#
-#         entry_theta2_ik.config(state=tk.NORMAL)
-#         entry_theta2_ik.delete(0, tk.END)
-#         entry_theta2_ik.insert(0, f"{angles[1]:.2f}")
-#         entry_theta2_ik.config(state='readonly')
-#
-#         entry_theta3_ik.config(state=tk.NORMAL)
-#         entry_theta3_ik.delete(0, tk.END)
-#         entry_theta3_ik.insert(0, f"{angles[2]:.2f}")
-#         entry_theta3_ik.config(state='readonly')
-#
-#     except ValueError:
-#         messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho X, Y, Z.")
-#     except ValueError as e:
-#         messagebox.showerror("Lỗi tính toán", str(e))
-#     except Exception as e:
-#         messagebox.showerror("Lỗi không xác định", f"Đã xảy ra lỗi: {e}")
-# def send_trajectory():
-#     try:
-#         x0_val = float(entry_x0.get())
-#         y0_val = float(entry_y0.get())
-#         z0_val = float(entry_z0.get())
-#         c0_val = entry_c0.get().strip()
-#         xf_val = float(entry_xf.get())
-#         yf_val = float(entry_yf.get())
-#         zf_val = float(entry_zf.get())
-#         tf_val = float(entry_tf.get())
-#         if not (-100 <= x0_val <= 87):
-#             messagebox.showerror("Lỗi", f"X={x0_val:.2f} nằm ngoài giới hạn robot")
-#             return
-#         if not (-80 <= y0_val <= 130):
-#             messagebox.showerror("Lỗi", f"Y={y0_val:.2f} nằm ngoài giới hạn robot")
-#             return
-#         if not (-397 <= z0_val <= -307.38):
-#             messagebox.showerror("Lỗi", f"Z={z0_val:.2f} nằm ngoài giới hạn robot")
-#             return
-#         if not (-100 <= xf_val <= 87):
-#             messagebox.showerror("Lỗi", f"X={xf_val:.2f} nằm ngoài giới hạn robot")
-#             return
-#         if not (-80 <= yf_val <= 130):
-#             messagebox.showerror("Lỗi", f"Y={yf_val:.2f} nằm ngoài giới hạn robot")
-#             return
-#         if not (-397 <= zf_val <= -307.38):
-#             messagebox.showerror("Lỗi", f"Z={zf_val:.2f} nằm ngoài giới hạn robot")
-#             return
-#         base_data_segment = f"P0:{x0_val},{y0_val},{z0_val};Pf:{xf_val},{yf_val},{zf_val};T:{tf_val}"
-#         data_to_send = ""
-#
-#         if c0_val:
-#             if len(c0_val) > 1: c0_val = c0_val[0]
-#             data_to_send = f"{base_data_segment};C:{c0_val}\r"
-#         else:
-#             data_to_send = f"{base_data_segment}\r"
-#
-#         if send_command_to_serial(data_to_send):
-#             entry_x0.delete(0, tk.END);
-#             entry_x0.insert(0, str(xf_val))
-#             entry_y0.delete(0, tk.END);
-#             entry_y0.insert(0, str(yf_val))
-#             entry_z0.delete(0, tk.END);
-#             entry_z0.insert(0, str(zf_val))
-#             entry_xf.delete(0, tk.END);
-#             entry_yf.delete(0, tk.END);
-#             entry_zf.delete(0, tk.END)
-#             entry_tf.delete(0, tk.END);
-#             entry_c0.delete(0, tk.END)
-#
-#     except ValueError:
-#         messagebox.showerror("Lỗi", "Vui lòng nhập giá trị số hợp lệ cho tọa độ và thời gian.")
-#     except Exception as e:
-#         messagebox.showerror("Lỗi", f"Đã xảy ra lỗi: {str(e)}")
-#
-#
-# def set_home():
-#     if send_command_to_serial('h\r'):
-#         try:
-#             result = Kinematic.forward_kinematic(0, 0, 0)
-#             if result and result[0]:
-#                 _, x, y, z = result
-#                 entry_x.config(state='normal');
-#                 entry_y.config(state='normal');
-#                 entry_z.config(state='normal')
-#                 entry_x.delete(0, tk.END);
-#                 entry_x.insert(0, f"{x:.2f}")
-#                 entry_y.delete(0, tk.END);
-#                 entry_y.insert(0, f"{y:.2f}")
-#                 entry_z.delete(0, tk.END);
-#                 entry_z.insert(0, f"{z:.2f}")
-#                 entry_x.config(state='readonly');
-#                 entry_y.config(state='readonly');
-#                 entry_z.config(state='readonly')
-#         except Exception as e:
-#             print(f"Error calculating home position kinematics: {e}")
-#
-#
-# def stop_robot(): send_command_to_serial('s\r')
-#
-#
-# def move_z_plus(): send_command_to_serial('z\r')
-#
-#
-# def move_z_minus(): send_command_to_serial('c\r')
-#
-#
-# def move_y_plus(): send_command_to_serial('y\r')
-#
-#
-# def move_y_minus(): send_command_to_serial('i\r')
-#
-#
-# def move_x_plus(): send_command_to_serial('x\r')
-#
-#
-# def move_x_minus(): send_command_to_serial('v\r')
-#
-# def start_all(): send_command_to_serial('j\r')
-# def read_serial():
-#     while True:
-#         if ser and ser.is_open and ser.in_waiting > 0:
-#             try:
-#                 line = ser.readline().decode('utf-8', errors='ignore').rstrip()
-#                 if line:
-#                     print(f"Nhận: {line}")
-#                     window.after(0, lambda l=line: (
-#                         text_box.insert(tk.END, l + "\n"),
-#                         text_box.see(tk.END)
-#                     ))
-#             except serial.SerialException as e:
-#                 print(f"Serial read error: {e}");
-#                 break
-#             except Exception as e:
-#                 print(f"Error processing serial data: {e}")
-#         time.sleep(0.1)
-#
-#
-# cap = None
-# camera_running = False
-#
-# def start_camera():
-#     global cap, camera_running
-#     if not camera_running:
-#         cap = cv2.VideoCapture(0)
-#         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-#         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-#         camera_running = True
-#         update_frame()  # Bắt đầu cập nhật khung hình
-#
-# def stop_camera_stream():
-#     global cap, camera_running
-#     camera_running = False
-#     if cap is not None:
-#         cap.release()
-#     label_cam.config(image='', bg="black")  # Xóa ảnh, giữ khung đen
-#
-#
-# def update_frame():
-#     global cap, camera_running
-#     if camera_running and cap.isOpened():
-#         ret, frame = cap.read()
-#         if ret:
-#             frame = cv2.resize(frame, (720, 370))  # Đảm bảo đúng kích thước
-#             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-#             img = Image.fromarray(frame)
-#             imgtk = ImageTk.PhotoImage(image=img)
-#             label_cam.imgtk = imgtk  # Giữ tham chiếu
-#             label_cam.config(image=imgtk)
-#         label_cam.after(10, update_frame)  # Gọi lại sau 10ms
-#
-# def emergency_stop(): send_command_to_serial('w\r')
-#
-#
-# magnet_state = 0
-#
-#
-# def toggle_namcham():
-#     global magnet_state
-#     cmd = 'u\r' if magnet_state == 0 else 'd\r'
-#     if send_command_to_serial(cmd):
-#         if magnet_state == 0:
-#             btn_namcham.config(text="ON MAG", bg="#3bd952");
-#             magnet_state = 1
-#         else:
-#             btn_namcham.config(text="OFF MAG", bg="#eb3b3b");
-#             magnet_state = 0
-#
-#
-# conveyor_state = 0
-#
-#
-# def toggle_conveyor():
-#     global conveyor_state
-#     cmd = 'w\r' if conveyor_state == 0 else 'z\r'  # Ensure 'w' and 'z' are correct for conveyor
-#     if send_command_to_serial(cmd):
-#         if conveyor_state == 0:
-#             btn_bangtai.config(text="ON CONV", bg="#3bd952");
-#             conveyor_state = 1
-#         else:
-#             btn_bangtai.config(text="OFF CONV", bg="#eb3b3b");
-#             conveyor_state = 0
-#
-#
-# # --- GUI LAYOUT DEFINITION ---
-#
-# # Section 1: Header Image
-# label_image = tk.Label(window, bg="#f0f0f5")
-# try:
-#     image_path = "Banner0.png"
-#     try:
-#         image = Image.open(image_path)
-#     except FileNotFoundError:
-#         print(f"Warning: Image file '{image_path}' not found. Using placeholder.")
-#         image = Image.new('RGB', (850, 100), color='skyblue')  # Simpler placeholder
-#     image = image.resize((850, 100))
-#     photo = ImageTk.PhotoImage(image)
-#     label_image.config(image=photo)
-#     label_image.image = photo
-# except Exception as e:
-#     print(f"Lỗi khi tải ảnh banner: {e}")
-#     # label_image might remain empty or you can set a text placeholder
-#
-# # Section 2: Title
-# title = tk.Label(window, text="ROBOT DELTA", font=font_title, bg="#f0f0f5", fg="#333")
-#
-# # Section 3: Mode Selection (MANUAL/AUTO)
-# frame_mode_selection_container = tk.Frame(window, bg="#f0f0f5")
-# frame_mode_selection = tk.Frame(frame_mode_selection_container, bg="#f0f0f5")
-# radio_manual = tk.Radiobutton(frame_mode_selection, text="MANUAL", variable=mode_var, value="manual",
-#                               command=toggle_mode, activebackground="#c0e0c0", indicatoron=0, width=10,
-#                               font=font_button, relief=tk.RAISED, bd=2)
-# radio_auto = tk.Radiobutton(frame_mode_selection, text="AUTO", variable=mode_var, value="auto",
-#                             command=toggle_mode, activebackground="#ffe0b0", indicatoron=0, width=10, font=font_button,
-#                             relief=tk.RAISED, bd=2)
-# radio_manual.pack(side=tk.LEFT, padx=(0, 5))
-# radio_auto.pack(side=tk.LEFT, padx=5)
-# frame_mode_selection.pack(side=tk.LEFT) # Sẽ pack vào frame_mode_selection_container sau
-#
-# # Section 4: Bottom Bar (Text Box and Control Buttons) - DEFINE IT BEFORE MAIN CONTENT FOR PACKING ORDER
-# bottom_bar_frame = tk.Frame(window, bg="#f0f0f5")
-#
-# frame_text_bottom_left = tk.Frame(bottom_bar_frame, bg="#f0f0f5")
-# text_box = tk.Text(frame_text_bottom_left, font=("Courier New", 11), width=60, height=5) # Giữ height=5
-# scrollbar = tk.Scrollbar(frame_text_bottom_left, command=text_box.yview)
-# text_box.config(yscrollcommand=scrollbar.set)
-# text_box.pack(side=tk.LEFT, fill="both", expand=True)
-# scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-# frame_text_bottom_left.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(0, 5))  # Text box on right
-#
-# frame_control_buttons_bottom = tk.Frame(bottom_bar_frame, bg="#f0f0f5")
-# col1 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-# col1.grid(row=0, column=0, padx=5)
-# btn_startall = tk.Button(col1, text="START", command=start_all, font=font_button, bg="#4CAF50", fg="white", width=10);
-# btn_startall.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_stop = tk.Button(col1, text="STOP", command=stop_robot, font=font_button, bg="#f44336", fg="white", width=10);
-# btn_stop.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_emg = tk.Button(col1, text="EMG", command=emergency_stop, font=font_button, bg="#B71C1C", fg="white", width=10);
-# btn_emg.pack(pady=2, fill=tk.X) # Giảm pady
-#
-# col2 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-# col2.grid(row=0, column=1, padx=5)
-# btn_z_plus = tk.Button(col2, text="Z+", command=move_z_plus, font=font_button, bg="#b5b0a7", fg="black", width=8);
-# btn_z_plus.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_z_minus = tk.Button(col2, text="Z-", command=move_z_minus, font=font_button, bg="#b5b0a7", fg="black", width=8);
-# btn_z_minus.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_y_plus = tk.Button(col2, text="Y+", command=move_y_plus, font=font_button, bg="#b5b0a7", fg="black", width=8);
-# btn_y_plus.pack(pady=2, fill=tk.X) # Giảm pady
-#
-# col3 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-# col3.grid(row=0, column=2, padx=5)
-# btn_x_minus = tk.Button(col3, text="X-", command=move_x_minus, font=font_button, bg="#b5b0a7", fg="black", width=8);
-# btn_x_minus.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_x_plus = tk.Button(col3, text="X+", command=move_x_plus, font=font_button, bg="#b5b0a7", fg="black", width=8);
-# btn_x_plus.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_y_minus = tk.Button(col3, text="Y-", command=move_y_minus, font=font_button, bg="#b5b0a7", fg="black", width=8);
-# btn_y_minus.pack(pady=2, fill=tk.X) # Giảm pady
-#
-# col4 = tk.Frame(frame_control_buttons_bottom, bg="#f0f0f5");
-# col4.grid(row=0, column=3, padx=5)
-# btn_home = tk.Button(col4, text="SET HOME", command=set_home, font=font_button, bg="#edaa1a", fg="white", width=8);
-# btn_home.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_namcham = tk.Button(col4, text="OFF MAG", command=toggle_namcham, font=font_button, bg="#eb3b3b", fg="white",
-#                         width=8);
-# btn_namcham.pack(pady=2, fill=tk.X) # Giảm pady
-# btn_bangtai = tk.Button(col4, text="OFF CONV", command=toggle_conveyor, font=font_button, bg="#eb3b3b", fg="white",
-#                         width=8);
-# btn_bangtai.pack(pady=2, fill=tk.X) # Giảm pady
-# frame_control_buttons_bottom.pack(side=tk.LEFT, padx=(5, 0))  # Control buttons on left
-#
-# # Section 5: Main Content Area (Kinematics, Trajectory, Camera)
-# frame_main = tk.Frame(window, bg="#f0f0f5")
-#
-# # Main Content -> Left Side (Inputs: Forward/Inverse Kinematics, Trajectory)
-# frame_inputs = tk.Frame(frame_main, bg="#f0f0f5")
-# # Forward Kinematics
-# label_for_kinematic = tk.Label(frame_inputs, text="FORWARD KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
-# label_for_kinematic.grid(row=0, column=0, columnspan=3, padx=10, pady=(10, 5), sticky="w")
-# label_theta1 = tk.Label(frame_inputs, text="Theta 1 (°):", font=font_label, bg="#f0f0f5"); label_theta1.grid(row=1, column=0, padx=10, pady=5, sticky="w")
-# entry_theta1 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta1.grid(row=1, column=1, pady=5)
-# label_theta2 = tk.Label(frame_inputs, text="Theta 2 (°):", font=font_label, bg="#f0f0f5"); label_theta2.grid(row=2, column=0, padx=10, pady=5, sticky="w")
-# entry_theta2 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta2.grid(row=2, column=1, pady=5)
-# btn_run = tk.Button(frame_inputs, text="RUN", command=send_angles, font=font_button, bg="#b5b0a7", fg="black", width=8)
-# btn_run.grid(row=2, column=2, padx=5)
-# label_theta3 = tk.Label(frame_inputs, text="Theta 3 (°):", font=font_label, bg="#f0f0f5"); label_theta3.grid(row=3, column=0, padx=10, pady=5, sticky="w")
-# entry_theta3 = tk.Entry(frame_inputs, font=font_entry, width=10); entry_theta3.grid(row=3, column=1, pady=5)
-# # Position Display
-# label_result = tk.Label(frame_inputs, text="POSITION (mm):", font=("Helvetica", 17, "bold"), bg="#f0f0f5"); label_result.grid(row=4, column=0, columnspan=3, padx=10, pady=(15, 5), sticky="w") # Giảm pady top
-# frame_xyz = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_xyz.grid(row=5, column=0, columnspan=3, padx=10, pady=5, sticky="w")
-# label_x = tk.Label(frame_xyz, text="X:", font=font_label, bg="#f0f0f5"); label_x.pack(side=tk.LEFT, padx=(0, 2))
-# entry_x = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly'); entry_x.pack(side=tk.LEFT, padx=(0, 10))
-# label_y = tk.Label(frame_xyz, text="Y:", font=font_label, bg="#f0f0f5"); label_y.pack(side=tk.LEFT, padx=(0, 2))
-# entry_y = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly'); entry_y.pack(side=tk.LEFT, padx=(0, 10))
-# label_z = tk.Label(frame_xyz, text="Z:", font=font_label, bg="#f0f0f5"); label_z.pack(side=tk.LEFT, padx=(0, 2))
-# entry_z = tk.Entry(frame_xyz, font=font_entry, width=8, state='readonly'); entry_z.pack(side=tk.LEFT, padx=(0, 10))
-# # Inverse Kinematics
-# label_inv_kinematic = tk.Label(frame_inputs, text="INVERSE KINEMATIC", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333"); label_inv_kinematic.grid(row=6, column=0, columnspan=3, padx=10, pady=(15, 5), sticky="w") # Giảm pady top
-# frame_x_ik = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_x_ik.grid(row=7, column=0, columnspan=3, padx=10, pady=2, sticky="w") # Giảm pady
-# label_x_ik = tk.Label(frame_x_ik, text="X:", font=font_label, bg="#f0f0f5"); label_x_ik.pack(side=tk.LEFT, padx=(0, 2))
-# entry_x_ik = tk.Entry(frame_x_ik, font=font_entry, width=8); entry_x_ik.pack(side=tk.LEFT, padx=(0, 10))
-# label_theta1_ik = tk.Label(frame_x_ik, text="Theta1:", font=font_label, bg="#f0f0f5"); label_theta1_ik.pack(side=tk.LEFT, padx=(0, 4))
-# entry_theta1_ik = tk.Entry(frame_x_ik, font=font_entry, width=8, state='readonly'); entry_theta1_ik.pack(side=tk.LEFT, padx=(0, 10))
-# frame_y_ik = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_y_ik.grid(row=8, column=0, columnspan=3, padx=10, pady=2, sticky="w") # Giảm pady
-# label_y_ik = tk.Label(frame_y_ik, text="Y:", font=font_label, bg="#f0f0f5"); label_y_ik.pack(side=tk.LEFT, padx=(0, 2))
-# entry_y_ik = tk.Entry(frame_y_ik, font=font_entry, width=8); entry_y_ik.pack(side=tk.LEFT, padx=(0, 10))
-# label_theta2_ik = tk.Label(frame_y_ik, text="Theta2:", font=font_label, bg="#f0f0f5"); label_theta2_ik.pack(side=tk.LEFT, padx=(0, 4))
-# entry_theta2_ik = tk.Entry(frame_y_ik, font=font_entry, width=8, state='readonly'); entry_theta2_ik.pack(side=tk.LEFT, padx=(0, 10))
-# frame_z_ik = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_z_ik.grid(row=9, column=0, columnspan=3, padx=10, pady=2, sticky="w") # Giảm pady
-# label_z_ik = tk.Label(frame_z_ik, text="Z:", font=font_label, bg="#f0f0f5"); label_z_ik.pack(side=tk.LEFT, padx=(0, 2))
-# entry_z_ik = tk.Entry(frame_z_ik, font=font_entry, width=8); entry_z_ik.pack(side=tk.LEFT, padx=(0, 10))
-# label_theta3_ik = tk.Label(frame_z_ik, text="Theta3:", font=font_label, bg="#f0f0f5"); label_theta3_ik.pack(side=tk.LEFT, padx=(0, 4))
-# entry_theta3_ik = tk.Entry(frame_z_ik, font=font_entry, width=8, state='readonly'); entry_theta3_ik.pack(side=tk.LEFT, padx=(0, 10))
-#
-# # *** SỬA Ở ĐÂY ***
-# # Giảm pady và ipady cho nút CAL IK
-# btn_calc_ik = tk.Button(frame_inputs, text="CAL IK", command=calculate_inv_kinematic, font=font_button, bg="#b5b0a7", fg="black", width=12)
-# btn_calc_ik.grid(row=10, column=0, columnspan=2, pady=(5, 7), sticky="w", padx=10, ipady=1) # pady=(top, bottom), giảm ipady
-#
-# # Trajectory Points
-# label_traj = tk.Label(frame_inputs, text="TRAJECTORY POINTS", font=("Helvetica", 17, "bold"), bg="#f0f0f5", fg="#333")
-# label_traj.grid(row=6, column=3, columnspan=3, padx=10, pady=(15, 5), sticky="w") # Giảm pady top
-# frame_controls = tk.Frame(frame_inputs, bg="#f0f0f5"); frame_controls.grid(row=7, column=3, columnspan=3, rowspan=3, padx=(10, 5), pady= (0,2), sticky="nw") # Giảm pady bottom
-# label_p0 = tk.Label(frame_controls, text="P0: (X0, Y0, Z0) | C0", font=font_label, bg="#f0f0f5"); label_p0.pack(anchor="w", padx=5)
-# frame_p0 = tk.Frame(frame_controls, bg="#f0f0f5"); frame_p0.pack(pady=2, anchor="w", padx=5) # Giảm pady
-# entry_x0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_x0.pack(side=tk.LEFT, padx=3); entry_x0.insert(0, "0.0")
-# entry_y0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_y0.pack(side=tk.LEFT, padx=3); entry_y0.insert(0, "0.0")
-# entry_z0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_z0.pack(side=tk.LEFT, padx=3); entry_z0.insert(0, "0.0")
-# entry_c0 = tk.Entry(frame_p0, font=font_entry, width=7, justify='center'); entry_c0.pack(side=tk.LEFT, padx=3)
-# label_pf = tk.Label(frame_controls, text="Pf: (Xf, Yf, Zf) | tf", font=font_label, bg="#f0f0f5"); label_pf.pack(anchor="w", padx=5)
-# frame_pf = tk.Frame(frame_controls, bg="#f0f0f5"); frame_pf.pack(pady=2, anchor="w", padx=5) # Giảm pady
-# entry_xf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_xf.pack(side=tk.LEFT, padx=3)
-# entry_yf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_yf.pack(side=tk.LEFT, padx=3)
-# entry_zf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_zf.pack(side=tk.LEFT, padx=3)
-# entry_tf = tk.Entry(frame_pf, font=font_entry, width=7, justify='center'); entry_tf.pack(side=tk.LEFT, padx=3)
-#
-# # *** SỬA Ở ĐÂY ***
-# # Giảm pady và ipady cho nút RUN TRAJECTORY
-# button_traj = tk.Button(frame_inputs, text="RUN TRAJECTORY", command=send_trajectory, font=font_button, bg="#b5b0a7", fg="black", width=15)
-# button_traj.grid(row=10, column=3, columnspan=3, padx=10, pady=(5, 7), sticky="w", ipady=1) # pady=(top, bottom), giảm ipady
-#
-# frame_inputs.pack(side=tk.LEFT, fill="y", padx=(0,10))
-#
-# # Main Content -> Right Side (Camera)
-# frame_right_zone = tk.Frame(frame_main, bg="#f0f0f5")
-# frame_right_zone.pack(side=tk.RIGHT, fill="both", expand=True, padx=10) # expand True để frame này cũng cố gắng chiếm không gian
-#
-# # Đặt frame_camera vào trong frame_right_zone
-# frame_camera = tk.Frame(frame_right_zone, bg="#e0e0e0", bd=2, relief=tk.SUNKEN)
-# # Pack frame_camera để nó mở rộng
-# frame_camera.pack(pady=(0, 5), fill="both", expand=True)
-# label_cam = tk.Label(frame_camera, bg="black")  # Placeholder size
-# # Pack label_cam để nó mở rộng và căn giữa
-# label_cam.pack(padx=10, pady=(10, 5), anchor="center", fill="both", expand=True)
-#
-# frame_cam_buttons = tk.Frame(frame_camera, bg="#e0e0e0")
-# btn_start_cam = tk.Button(frame_cam_buttons, text="START CAMERA", command=start_camera, font=font_button, bg="#4CAF50",
-#                           fg="white", width=16)
-# btn_start_cam.pack(side=tk.LEFT, padx=5, pady=5) # Thêm pady cho nút camera
-# btn_stop_cam = tk.Button(frame_cam_buttons, text="STOP CAMERA", command=stop_camera_stream, font=font_button,
-#                          bg="#f44336", fg="white", width=16)
-# btn_stop_cam.pack(side=tk.LEFT, padx=5, pady=5) # Thêm pady cho nút camera
-# frame_cam_buttons.pack(side=tk.BOTTOM, anchor="center", padx=10, pady=(5,10)) # pady dưới cùng
-#
-#
-# # --- PACKING THE MAIN LAYOUT SECTIONS INTO THE WINDOW ---
-# # Order is important: top fixed, bottom fixed, then central expanding
-# label_image.pack(side=tk.TOP, fill=tk.X, pady=(10, 5))
-# title.pack(side=tk.TOP, pady=(5,10)) # Giảm pady trên của title
-#
-# # *** SỬA Ở ĐÂY ***
-# # Giảm pady cho frame_mode_selection_container
-# frame_mode_selection_container.pack(side=tk.TOP, fill=tk.X, padx=20, pady=(0, 5))
-#
-# # *** SỬA Ở ĐÂY ***
-# # Giảm pady cho bottom_bar_frame
-# bottom_bar_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(5, 5))
-#
-# frame_main.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=20, pady=0)
-#
-# # --- FINAL SETUP ---
-# controllable_buttons.extend([
-#     btn_run, button_traj, btn_namcham, btn_bangtai,
-#     btn_z_plus, btn_z_minus, btn_y_plus, btn_y_minus,
-#     btn_x_plus, btn_x_minus, btn_calc_ik # Thêm btn_calc_ik vào đây nếu nó cũng bị disable ở mode auto
-# ])
-# toggle_mode()
-#
-# if ser:
-#     serial_thread = threading.Thread(target=read_serial, daemon=True)
-#     serial_thread.start()
-# else:
-#     text_box.insert(tk.END, "Serial port (COM5) not available. Check connection.\n")
-#
-# window.mainloop()
-#
-# if ser and ser.is_open:
-#     ser.close()
+
 import cv2
 import numpy as np
+import time
+import uuid  # Thêm thư viện để tạo ID duy nhất
+import serial
 
-def pick_color():
-    def callback(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            hsv_value = hsv[y, x]
-            print(f"HSV tại ({x}, {y}): {hsv_value}")
+from queue import Queue
+import threading
 
-    cap = cv2.VideoCapture(1)
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        cv2.imshow("Frame", frame)
-        cv2.setMouseCallback("Frame", callback)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    cap.release()
-    cv2.destroyAllWindows()
+# Thêm biến toàn cục để theo dõi vật thể đã được đếm
+_counted_objects = set()
+# --- Các hằng số và biến toàn cục của module ---
+# MA TRẬN NỘI TẠI
+CAMERA_MATRIX = np.array([
+    [815.98760425, 0, 337.32019432],
+    [0, 816.18913792, 241.58831339],
+    [0, 0, 1]
+], dtype=np.float32)
+# HỆ SỐ MÉO
+DIST_COEFFS = np.array([0.13648701, -0.15912073, -0.01095812, 0.00887588, -3.32255901], dtype=np.float32)
 
-pick_color()
+# CẤU HÌNH ROI (REGION OF INTEREST)
+HEIGHT_ROI = [0, 480] # ĐÂY LÀ TỌA ĐỘ GÓC TRÁI TRÊN
+WIDTH_ROI = [100, 389] # PHẢI DƯỚI
+ROI_X1, ROI_Y1, ROI_X2, ROI_Y2 = WIDTH_ROI[0], HEIGHT_ROI[0], WIDTH_ROI[1], HEIGHT_ROI[1]
+
+Y_TOP = 80
+Y_TRIGGER = 200
+Y_BOTTOM = 400
+real_distance_trig_to_top = 39.5  # mm
+real_distance_bottom_to_trig = 68  # mm
+
+# VÙNG MÀU CẦN NHẬN DIỆN
+COLOR_RANGES = {
+    'red': ([0, 70, 50], [10, 255, 255], [160, 70, 50], [180, 255, 255]),
+    'green': ([40, 70, 50], [80, 255, 255]),
+    'yellow': ([25, 90, 95], [35, 250, 255]),
+}
+# KHI ĐẾN TRIGGER LINE THÌ NHẬN DIỆN VUÔNG XANH THÀNH TRÒN XANH
+# Biến trạng thái cho việc nhận diện
+_tracking_active = False
+_start_time = 0 # THỜI GIAN XUẤT HIỆN LẦN ĐẦU
+_start_y = 0
+_max_velocity = 0
+_current_object_info = None
+_object_color_detected = None
+_last_command_time = 0
+_command_sent = False  # ĐÃ GỬI LỆNH ĐIỀU KHIỂN CHƯA
+_predicted_time_to_top = 0
+
+
+_calibration_data_list = []
+_command_cooldown_duration = 3.0  # Thời gian cooldown sau khi gửi lệnh (giây)
+_current_object_id = None
+_current_shape_detected = None
+
+# Ngưỡng diện tích tối thiểu cho contour được coi là hợp lệ
+MIN_CONTOUR_AREA = 150
+
+# LƯU BIẾN Ở DẠNG DICTIONARY (đây là dạng mảng liên kết, key - value)
+_objects_memory = {
+    'red_star': {'count': 0},
+    'green_star': {'count': 0},
+    'yellow_star': {'count': 0},
+    'red_square': {'count': 0},
+    'green_square': {'count': 0},
+    'yellow_square': {'count': 0},
+    'red_triangle': {'count': 0},
+    'green_triangle': {'count': 0},
+    'yellow_triangle': {'count': 0}
+}
+#########################
+class SerialManager:
+    def __init__(self, port, baudrate):
+        self.serial_port = serial.Serial(port, baudrate, timeout=1)
+        self.command_queue = Queue()
+        self.response_queue = Queue()
+        self.running = False
+        self.lock = threading.Lock()
+
+    def start(self):
+        self.running = True
+        self.read_thread = threading.Thread(target=self._read_serial, daemon=True)
+        self.read_thread.start()
+        self.write_thread = threading.Thread(target=self._write_serial, daemon=True)
+        self.write_thread.start()
+
+    def stop(self):
+        self.running = False
+        self.read_thread.join()
+        self.write_thread.join()
+        self.serial_port.close()
+
+    def _read_serial(self):
+        while self.running:
+            if self.serial_port.in_waiting:
+                with self.lock:
+                    data = self.serial_port.readline().decode().strip()
+                    self.response_queue.put(data)
+            time.sleep(0.01)
+
+    def _write_serial(self):
+        while self.running:
+            if not self.command_queue.empty():
+                command = self.command_queue.get()
+                with self.lock:
+                    self.serial_port.write(command.encode())
+            time.sleep(0.01)
+
+    def send_command(self, command):
+        self.command_queue.put(command)
+
+    def get_response(self):
+        if not self.response_queue.empty():
+            return self.response_queue.get()
+        return None
+###########################
+def set_operation_mode(is_auto):
+    """
+    Thiết lập chế độ hoạt động của hệ thống.
+    Args:
+        is_auto (bool): True nếu ở chế độ AUTO, False nếu ở chế độ MANUAL.
+    """
+    global _is_auto_mode
+    _is_auto_mode = bool(is_auto)
+    if _is_auto_mode:
+        print("ObjectDetection: Chế độ AUTO - Gửi dữ liệu được phép.")
+    else:
+        print("ObjectDetection: Chế độ MANUAL - Không gửi dữ liệu.")
+def get_object_memory():
+    """Trả về bản sao của bộ nhớ vật thể để hiển thị trên GUI"""
+    return _objects_memory.copy()
+def reset_object_memory():
+    """Reset tất cả bộ nhớ ĐẾM vật thể"""
+    global _objects_memory
+    for key in _objects_memory.keys():
+        _objects_memory[key] = {'count': 0}
+
+def reset_detection_state():
+    """Reset all state variables for object detection."""
+    global _tracking_active, _start_time, _start_y, _max_velocity
+    global _current_object_info, _object_color_detected, _last_command_time
+    global _command_sent, _predicted_time_to_top, _calibration_data_list
+    global _counted_objects_id
+
+
+    _current_object_id = None
+    _tracking_active = False
+    _start_time = 0
+    _start_y = 0
+    _max_velocity = 0
+    _current_object_info = None
+    _object_color_detected = None
+    _last_command_time = 0
+    _command_sent = False
+    _predicted_time_to_top = 0
+    _calibration_data_list = []
+
+# def process_frame_for_detection(input_frame, ser_instance):
+def process_frame_for_detection(input_frame, serial_manager):
+    """
+    Processes a single frame for object detection, drawing, and communication.
+    Args:
+        input_frame: The raw frame from the camera.
+        ser_instance: The serial port instance for communication with Arduino.
+    Returns:
+        The processed frame with detections and information drawn on it.
+    """
+    global _tracking_active, _start_time, _start_y, _max_velocity
+    global _current_object_info, _object_color_detected, _last_command_time
+    global _command_sent, _predicted_time_to_top, _calibration_data_list
+    global _predicted_time_robot_reach
+    global _current_object_id
+    global _current_shape_detected
+    _predicted_time_robot_reach = 0
+
+    if input_frame is None:
+        return None
+
+    frame = input_frame.copy() # TẠO BẢN SAO ĐỂ VẼ CÁC ĐƯỜNG ROI
+
+    # Always draw ROI lines and text, regardless of detection state
+    cv2.rectangle(frame, (ROI_X1, ROI_Y1), (ROI_X2, ROI_Y2), (0, 0, 255), 2)
+    cv2.line(frame, (ROI_X1, Y_BOTTOM), (ROI_X2, Y_BOTTOM), (255, 0, 255), 2)
+    cv2.putText(frame, "Bottom line", (ROI_X1 + 10, Y_BOTTOM - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+    cv2.line(frame, (ROI_X1, Y_TRIGGER), (ROI_X2, Y_TRIGGER), (0, 255, 255), 2)
+    cv2.putText(frame, "Trigger line", (ROI_X1 + 10, Y_TRIGGER - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+    cv2.line(frame, (ROI_X1, Y_TOP), (ROI_X2, Y_TOP), (255, 0, 0), 2)
+    cv2.putText(frame, "Top line", (ROI_X1 + 10, Y_TOP - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+
+    # --- Logic để tránh đơ camera sau khi gửi lệnh ---
+    # Nếu đã gửi lệnh VÀ chưa đủ thời gian cooldown, thì chỉ vẽ khung và bỏ qua phần xử lý nhận diện vật thể
+    if _command_sent and (time.time() - _last_command_time) < _command_cooldown_duration:
+        return frame  # Trả về frame đã vẽ đường mà không thực hiện detect object
+
+    # Nếu đã đủ thời gian cooldown, reset trạng thái để sẵn sàng nhận diện vật thể tiếp theo
+    if _command_sent and (time.time() - _last_command_time) >= _command_cooldown_duration:
+        reset_detection_state()  # Reset trạng thái để bắt đầu nhận diện vật thể mới
+
+    roi = frame[ROI_Y1:ROI_Y2, ROI_X1:ROI_X2]
+    # CĂT PHẦN ẢNH TRONG VÙNG ROI ĐỂ GIẢM DIỆN TÍCH XỬ LÝ
+    if roi.size == 0:
+        print("Warning: ROI is empty.")
+        return frame
+
+    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    # CHUYỂN ROI SANG HSV ĐỂ XỬ LÝ NHẬN DIỆN MÀU TỐT HƠN SO VỚI BGR
+
+    # Biến để lưu trữ contour lớn nhất được tìm thấy trong khung hình hiện tại
+    # và màu sắc của nó, để đảm bảo chỉ xử lý một vật thể chính
+    best_contour = None # GIẢM NHIỄU CHO HÌNH BAO VẬT THỂ LỚN NHẤT TÌM ĐƯỢC
+    best_color_name = None
+
+    # Tìm contour lớn nhất cho mỗi màu và chọn contour lớn nhất trong số đó
+    for color_name, hsv_limits_tuple in COLOR_RANGES.items(): # Đổi tên biến 'ranges' cho rõ ràng
+        mask = None # Khởi tạo mask
+
+        if len(hsv_limits_tuple) == 4:
+            # Trường hợp có 2 dải màu (ví dụ: red)
+            # hsv_limits_tuple là (lower1, upper1, lower2, upper2)
+            lower1, upper1, lower2, upper2 = hsv_limits_tuple
+            # mask1 tạo mặt nạ nhị phân cho dải màu thứ nhất
+            mask1 = cv2.inRange(hsv, np.array(lower1), np.array(upper1))
+            mask2 = cv2.inRange(hsv, np.array(lower2), np.array(upper2))
+            mask = cv2.bitwise_or(mask1, mask2)
+            # Bất kỳ pixel nào thuộc về dải màu thứ nhất HOẶC dải màu thứ hai
+            # đều sẽ được bao gồm trong mặt nạ cuối cùng.
+            # Các màu như 'red' có thể nằm ở hai đầu của thang đo Hue (0/180)
+        elif len(hsv_limits_tuple) == 2:
+            # Trường hợp có 1 dải màu (ví dụ: green, yellow)
+            # hsv_limits_tuple là (lower, upper)
+            lower, upper = hsv_limits_tuple
+            mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+        else:
+            print(f"Cảnh báo: Số lượng khoảng HSV không hợp lệ cho màu {color_name}. Bỏ qua màu này.")
+            continue # Bỏ qua màu này nếu cấu trúc không mong đợi
+
+        if mask is None: # Kiểm tra lại nếu mask chưa được tạo
+            continue
+
+        # LOẠI BỎ NHIỄU
+        kernel = np.ones((5, 5), np.uint8) # kernel này là hình vuông
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.medianBlur(mask, 5)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Lọc các contour có diện tích nhỏ hơn ngưỡng và tìm contour lớn nhất cho màu hiện tại
+        valid_contours = [cnt for cnt in contours if cv2.contourArea(cnt) >= MIN_CONTOUR_AREA]
+
+        if valid_contours:
+            current_largest_contour = max(valid_contours, key=cv2.contourArea)
+            # So sánh với best_contour tổng thể để tìm ra vật thể lớn nhất trong tất cả các màu
+            if best_contour is None or cv2.contourArea(current_largest_contour) > cv2.contourArea(best_contour):
+                best_contour = current_largest_contour
+                best_color_name = color_name
+                _object_color_detected = 'Y' if best_color_name == 'yellow' else best_color_name[0].upper()
+
+    # --- Chỉ xử lý contour lớn nhất được tìm thấy trong toàn bộ khung hình ---
+    if best_contour is not None:
+        cnt = best_contour
+        color_name = best_color_name  # Gán lại color_name cho contour được chọn
+
+        x, y, w, h = cv2.boundingRect(cnt)
+        # tọa độ x,y góc trên bên trái, chiều rộng cao w,h hcn
+        text_x_base = ROI_X1 + x
+        # --- Phần tính toán màu sắc trung bình và vẽ ---
+        # VẼ BOUNDING BOX VÀ TẠO MASK CHO CONTOUR
+        mask_cnt = np.zeros(roi.shape[:2], dtype=np.uint8)
+        cv2.drawContours(mask_cnt, [cnt], -1, 255, thickness=cv2.FILLED)
+        # -1: Vẽ tất cả các đường viền trong contours
+        mean_hsv_val = cv2.mean(hsv, mask=mask_cnt)
+        # DÙNG HSV TRUNG BÌNH ĐỂ TÍNH LẠI MÀU SẮC
+        hue_val = int(mean_hsv_val[0])
+        sat_val = int(mean_hsv_val[1])
+        brightness_val = int(mean_hsv_val[2])
+        # if sat_val < 50 or brightness_val < 50:  # Ngưỡng có thể điều chỉnh
+        #     return frame  # Bỏ qua frame này nếu màu không đủ rõ
+
+        bgr_color_obj = cv2.cvtColor(np.uint8([[[hue_val, sat_val, brightness_val]]]), cv2.COLOR_HSV2BGR)[0][0]
+        # bgr_color_obj sẽ chứa một mảng NumPy 1D với 3 giá trị BGR của màu đã được chuyển đổi (ví dụ: [B, G, R])
+        bgr_color_tuple = tuple(int(c) for c in bgr_color_obj)
+        # tuple dùng để lưu trữ các giá trị hằng số
+
+        cv2.rectangle(frame, (ROI_X1 + x, ROI_Y1 + y), (ROI_X1 + x + w, ROI_Y1 + y + h), bgr_color_tuple, 2)
+
+        M = cv2.moments(cnt)
+        # hàm này tính moment hình học, trả về dictionary: m00,m10,m01
+        # MOMENT CẤP 0: DIỆN TÍCH, CẤP 1: TRỌNG TÂM, CẤP 2: XÁC ĐỊNH VỊ TRÍ VÀ HƯỚNG ĐỐI TƯỢNG
+        if M["m00"] != 0:
+            cx_roi = int(M["m10"] / M["m00"]) # m00:diện tích đối tượng
+            cy_roi = int(M["m01"] / M["m00"])
+            # m10 và m01 là các giá trị tính theo x hoặc y để khi thực hiện phép toán
+            # ta rút gọn được cường độ các điểm ảnh do đều bằng nhau
+            # TÍNH TÂM CONTOUR THỰC TẾ
+            cx_frame = ROI_X1 + cx_roi
+            cy_frame = ROI_Y1 + cy_roi
+
+            # Bỏ qua nếu tâm lệch (vẫn giữ logic này cho contour lớn nhất)
+            bbox_cx_roi = x + w // 2 # tọa độ tâm hình chữ nhật bao quanh contour
+            bbox_cy_roi = y + h // 2
+            distance = np.sqrt((cx_roi - bbox_cx_roi) ** 2 + (cy_roi - bbox_cy_roi) ** 2)
+            # distance: khoảng cách giữa tâm contour thực sự và tâm bounding box
+            max_allowed_distance = 0.4 * min(w, h)
+            if distance > max_allowed_distance:
+                # Nếu contour lớn nhất vẫn bị lệch tâm, không xử lý tiếp
+                return frame
+
+            cv2.circle(frame, (cx_frame, cy_frame), 6, (0, 0, 0), -1)
+            # Vẽ tâm vật thể lên GUI
+
+            # --- Hiệu chỉnh méo và chuyển đổi tọa độ ---
+            distorted_point = np.array([[[cx_frame, cy_frame]]], dtype=np.float32)
+            undistorted = cv2.undistortPoints(distorted_point, CAMERA_MATRIX, DIST_COEFFS, P=CAMERA_MATRIX)
+            undistorted_coords = undistorted[0][0]
+
+            Z_CONST = 263  # Chiều cao giả định của vật thể so với camera
+            fx, fy = CAMERA_MATRIX[0, 0], CAMERA_MATRIX[1, 1]
+            cx_intr, cy_intr = CAMERA_MATRIX[0, 2], CAMERA_MATRIX[1, 2]
+            real_x = (undistorted_coords[0] - cx_intr) * Z_CONST / fx
+            real_y = (undistorted_coords[1] - cy_intr) * Z_CONST / fy
+            # tọa độ thật của vật thể trong hệ tọa độ camera
+            # DÙNG CÔNG THỨC CAMERA PINHOLE ĐỂ CHUYỂN PIXEL QUA mm
+            real_y_top_trig = (Y_TRIGGER - Y_TOP) * Z_CONST / fy
+            P_CA = np.array([[real_x], [real_y], [Z_CONST], [1]])
+            T_0C = np.array([
+                [0, -1, 0, -170],
+                [-1, 0, 0, -17],
+                [0, 0, -1, -132],
+                [0, 0, 0, 1]
+            ]) # MA TRẬN CHUYỂN ĐỔI CAMERA QUA ROBOT
+            P_OA = T_0C @ P_CA
+            calib_x, calib_y, calib_z = P_OA[0, 0], P_OA[1, 0], P_OA[2, 0]
+            calib_x_top = P_OA[0, 0] + real_y_top_trig
+
+            if len(_calibration_data_list) < 20:
+                _calibration_data_list.append(calib_x)
+                # append: thêm calib_x vào cuối list _calibration_data_list
+
+            # --- Xử lý logic tracking và tính toán vận tốc ---
+            current_y_on_frame = cy_roi + ROI_Y1
+##############################
+            # NHẬN DIỆN HÌNH DẠNG TRƯỚC KHI XỬ LÝ TRIGGER LINE
+            epsilon = 0.02 * cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, epsilon, True)
+            # approx là mảng chưa các điểm đỉnh của contour
+            # Đây là thuật toán xấp xỉ đường đa giác Douglas-Peucker.
+            # Nó làm giảm số lượng đỉnh của một đường cong hoặc đa giác
+            # trong khi vẫn giữ được hình dạng tổng thể
+            # shape = "Unknown"
+
+            vertices = len(approx) # số đỉnh của đa giác
+            hull = cv2.convexHull(cnt) # tìm đường bao lồi
+            area = cv2.contourArea(cnt)
+            hull_area = cv2.contourArea(hull)
+            solidity = float(area) / hull_area if hull_area > 0 else 0
+
+            (x, y, w, h) = cv2.boundingRect(cnt)
+            aspect_ratio = float(w) / h if h != 0 else 1.0
+            # tỉ lệ giữa chiều rộng và cao của bounding box
+
+            # Tính độ lệch cạnh nếu là 4 đỉnh
+            side_ratio = 0 # hình vuông = 1, hcn < 1
+            if vertices == 4:
+                sides = []
+                for i in range(4): # vòng lặp chạy qua 4 cạnh của tứ giác
+                    pt1 = approx[i][0] # lấy điểm đỉnh đầu tiên của cạnh hiện tại
+                    pt2 = approx[(i + 1) % 4][0]
+                    length = np.linalg.norm(pt1 - pt2)
+                    sides.append(length) # append: thêm phần tử vào cuối chuỗi
+                max_len = max(sides)
+                min_len = min(sides)
+                side_ratio = min_len / max_len if max_len != 0 else 0
+
+            # ------------------------------
+            # DEBUG: In thông số để kiểm tra
+            # print(
+            #     f"Vertices: {vertices}, Solidity: {solidity:.2f}, Aspect Ratio: {aspect_ratio:.2f}, Side Ratio: {side_ratio:.2f}, Area: {area:.1f}")
+            # ------------------------------
+
+            # đơn vị area là pixel vuông
+            # ƯU TIÊN HÌNH CÓ 4 CẠNH TRƯỚC
+            if vertices == 4 and 0.85 <= aspect_ratio <= 1.15 and side_ratio > 0.85 and solidity > 0.9:
+                shape = "Square"
+            elif vertices == 4 and solidity > 0.9:
+                shape = "Rectangle"
+            elif 6 <= vertices <= 9 and 0.9 <= aspect_ratio <= 1.1 and solidity > 0.93 and area > 1500:
+                shape = "Square"
+            elif 10 <= vertices <= 16 and solidity < 0.85:
+                shape = "Star"
+            elif vertices > 16 and solidity > 0.90:
+                shape = "Circle"
+            elif 3 <= vertices <= 6 and solidity > 0.85 and area > 300:
+                shape = "Triangle"
+            else:
+                shape = "Unknown"
+
+            # Hiển thị thông tin hình dạng và màu sắc
+            cv2.putText(frame, f"{color_name} {shape}", (text_x_base, ROI_Y1 + y - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, bgr_color_tuple, 2)
+
+            # Bắt đầu tracking khi vật đi qua bottom line
+            if current_y_on_frame >= Y_BOTTOM and not _tracking_active and not _command_sent:
+                # Ghi nhận thời gian, vị trí bắt đầu, màu vật thể, gán ID bằng uuid
+                _tracking_active = True
+                _start_time = time.time()
+                _start_y = current_y_on_frame
+                _current_object_info = (cx_frame, cy_frame)
+                # if color_name == 'yellow':
+                #     _object_color_detected = 'Y'
+                # else:
+                #     _object_color_detected = color_name[0].upper()
+                _current_object_id = str(uuid.uuid4()) # gán id để nhận riêng vật này
+
+            # Tính toán vận tốc khi vật đang di chuyển và thời gian robot đến gắp vật
+            if _tracking_active and not _command_sent:
+                current_time = time.time()
+                elapsed_time = current_time - _start_time
+
+                if elapsed_time > 0:
+                    distance_pixels = abs(current_y_on_frame - _start_y) # k/c theo trục y
+                    distance_mm = distance_pixels * Z_CONST / fy
+                    current_velocity = distance_mm / elapsed_time
+                    # TÍNH VẬN TỐC HIỆN TẠI DỰA TRÊN QUÃNG ĐƯỜNG ĐI TỪ Y_BOTTOM
+
+                    if current_velocity > _max_velocity:
+                        _max_velocity = current_velocity
+                        distance_to_top_mm = (Y_TRIGGER - Y_TOP) * Z_CONST / fy
+                        _predicted_time_to_top = distance_to_top_mm / _max_velocity if _max_velocity > 0 else 0
+                        _predicted_time_robot_reach = _predicted_time_to_top - 0.1    # XỬ LÝ TRIGGER LINE (GỘP 2 PHẦN IF LẠI THÀNH 1)
+            calib_x_top = calib_x_top + 25
+            if _tracking_active and current_y_on_frame <= Y_TRIGGER and not _command_sent:
+                object_key = f"{color_name}_{shape.lower()}"
+
+                # Kiểm tra vật thể chưa được đếm
+                if _current_object_id is not None and object_key in _objects_memory:
+                    # Tạo key duy nhất cho vật thể này
+                    object_unique_key = f"{object_key}_{_current_object_id}"
+
+                    if object_unique_key not in _counted_objects:
+                        # đk đảm bảo rằng mỗi vật thể chỉ được đếm một lần duy nhất.
+                        _objects_memory[object_key]['count'] += 1
+                        _counted_objects.add(object_unique_key)
+                        # print(f"Đã phát hiện: {object_key}, Tổng số: {_objects_memory[object_key]['count']}")
+
+                # Gửi lệnh đến Arduino CHỈ KHI Ở CHẾ ĐỘ AUTO
+                ###############################################################
+                # if _is_auto_mode: # <<< THÊM ĐIỀU KIỆN KIỂM TRA CHẾ ĐỘ AUTO
+                #     if _max_velocity > 0 and ser_instance and ser_instance.is_open and _object_color_detected:
+                #         if _predicted_time_robot_reach == 0:
+                #             _predicted_time_robot_reach = 0.5 # Hoặc một giá trị default hợp lý khác
+                #         command = f"Next:{calib_x_top:.1f},{calib_y:.1f},{calib_z:.1f};T:{_predicted_time_robot_reach:.2f};C:{_object_color_detected}\n"
+                #         try:
+                #             ser_instance.write(command.encode()) # Gửi lệnh đã mã hóa (thành bytes) qua cổng serial đến Arduino.
+                #             print(f"Sent to Arduino (AUTO): {command.strip()}")
+                #             _command_sent = True
+                #             reset_detection_state()
+                #             _last_command_time = time.time()
+                #
+                #         except Exception as e:
+                #             print(f"Error sending to Arduino (AUTO): {e}")
+                #     # else: # Có thể thêm log nếu các điều kiện khác không thỏa mãn khi ở AUTO
+                #     #     if not _object_color_detected: print("AUTO Mode: No object color detected.")
+                if _is_auto_mode and _max_velocity > 0 and _object_color_detected:
+                    if _predicted_time_robot_reach == 0:
+                        _predicted_time_robot_reach = 0.5
+                    command = f"Next:{calib_x_top:.1f},{calib_y:.1f},{calib_z:.1f};T:{_predicted_time_robot_reach:.2f};C:{_object_color_detected}\n"
+                    try:
+                        if isinstance(serial_manager, SerialManager):
+                            serial_manager.send_command(command)
+                            print(f"Sent to Arduino (AUTO): {command.strip()}")
+                            _command_sent = True
+                            _last_command_time = time.time()
+
+                            time.sleep(0.1)
+                        else:
+                            print("Warning: Invalid serial manager instance")
+                    except Exception as e:
+                        print(f"Error sending to Arduino: {e}")
+                ###############################################################
+                else:
+                    # Ở chế độ MANUAL, không gửi lệnh, nhưng có thể log thông tin
+                    if _object_color_detected: # Chỉ log nếu có vật thể để tránh spam
+                        print(f"MANUAL Mode: Object {_object_color_detected} at trigger. Data not sent. Coords: ({calib_x_top:.1f}, {calib_y:.1f})")
+
+                # Các dòng này nên được thực thi dù có gửi lệnh hay không,
+                # để chuẩn bị cho vật thể tiếp theo hoặc reset trạng thái logic
+                _tracking_active = False # Kết thúc tracking cho vật thể này
+                _max_velocity = 0        # Reset vận tốc max cho vật thể tiếp theo
+                _current_object_id = None # Reset ID sau khi xử lý xong
+
+                if not _is_auto_mode:
+                    pass
+
+                _tracking_active = False
+                _max_velocity = 0
+                _current_object_id = None  # Reset ID sau khi xử lý xong
+
+            # --- Vẽ thông tin lên frame ---
+            text_x_base = ROI_X1 + x
+            text_y_base = ROI_Y1 + y + h
+
+            robot_coords_text = f"Robot: ({calib_x:.1f}, {calib_y:.1f}, {calib_z:.1f})"
+            cv2.putText(frame, robot_coords_text, (text_x_base, text_y_base + 60),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 0), 1)
+
+
+    return frame
